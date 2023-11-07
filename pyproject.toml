@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "entropic"
+version = "0.0.1"
+description = "Entropic, physics data processing framework"
+readme = "README.md"
+license = "MIT"
+authors = [
+    { name = "Juan Pablo Vanegas", email = "jpvanegasc@gmail.com" },
+]
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/jpvanegasc/entropic"
+"Bug Tracker" = "https://github.com/jpvanegasc/entropic/issues"
