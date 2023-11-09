@@ -21,3 +21,6 @@ classifiers = [
 [project.urls]
 "Homepage" = "https://github.com/jpvanegasc/entropic"
 "Bug Tracker" = "https://github.com/jpvanegasc/entropic/issues"
+
+[tool.black]
+exclude = "env"
