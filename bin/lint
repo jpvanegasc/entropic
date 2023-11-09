@@ -1,4 +1,4 @@
 # !/bin/bash
-black "$(pwd)/src"
-ruff "$(pwd)/src"
-mypy "$(pwd)/src"
+black "$(pwd)/entropic"
+ruff "$(pwd)/entropic"
+mypy "$(pwd)/entropic"
