@@ -1,5 +1,5 @@
 def test_minimal():
     from minimal import Pipeline  # noqa: F401
-    from entropic.results import Results
+    from entropic import results
 
-    assert Results.all
+    assert results.all == []

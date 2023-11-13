@@ -18,9 +18,9 @@ class Process(Pipeline):
 After running `entropic run` you can access your results with
 
 ```python
-from entropic.results import Results
+from entropic import results
 
-for case in Results.all:  # Results.all is a generator
+for case in results.all:  # results.all is a generator
     for sample in case.samples:  # case.samples is a generator
         print(sample.data)  # pandas dataframe
 ```
@@ -32,7 +32,7 @@ A bit more complex example would involve creating a Case:
 import pandas as pd
 from entropic.sources import Case, FloatField
 from entropic.process import Pipeline
-from entropic.results import Results
+from entropic import results
 
 
 class Kinematic(Case):
@@ -56,15 +56,15 @@ class Process(Pipeline):
 
 
 # Load case into results
-Results.include(Kinematic)
+results.include(Kinematic)
 ```
 
 After running `entropic run` you can access your results with
 
 ```python
-from entropic.results import Results
+from entropic import results
 
-for case in Results.all:
+for case in results.all:
     print(case.speed)  # average speed value for all samples
     for sample in case.samples:
         print(sample.speed)  # calculated speed for sample
