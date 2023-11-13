@@ -1,1 +1,1 @@
-from .experiment import Case  # noqa: F401
+from .case import Case  # noqa: F401
