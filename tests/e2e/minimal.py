@@ -3,5 +3,5 @@ from entropic.process import Pipeline
 
 
 class Process(Pipeline):
-    source_path = "../mocks/"
+    source_path = "tests/mocks/"
     extract_with = Sample.read_csv

@@ -51,6 +51,9 @@ coverage.xml
 .pytest_cache/
 cover/
 
+# TinyDB file
+.entropic-db
+
 # PyBuilder
 .pybuilder/
 target/

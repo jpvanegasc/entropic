@@ -1,5 +1,9 @@
 def test_minimal():
-    from minimal import Pipeline  # noqa: F401
+    from minimal import Process
     from entropic import results
 
-    assert results.all == []
+    pipeline = Process()
+    pipeline.run()
+
+    assert results.all
+    assert results.all == [{"path": "tests/mocks/"}]
