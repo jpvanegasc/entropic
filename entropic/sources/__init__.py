@@ -1,2 +1,2 @@
-from .case import Case  # noqa: F401
+from .iteration import Iteration  # noqa: F401
 from .sample import Sample  # noqa: F401

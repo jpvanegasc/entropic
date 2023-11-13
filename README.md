@@ -20,28 +20,28 @@ After running `entropic run` you can access your results with
 ```python
 from entropic import results
 
-for case in results.all:  # results.all is a generator
-    for sample in case.samples:  # case.samples is a generator
+for iteration in results.all:  # results.all is a generator
+    for sample in iteration.samples:  # iteration.samples is a generator
         print(sample.data)  # pandas dataframe
 ```
 
 ### Example upgrade
-A bit more complex example would involve creating a Case:
+A bit more complex example would involve creating an Iteration:
 
 ```python
 import pandas as pd
-from entropic.sources import Case, FloatField
+from entropic.sources import Iteration, FloatField
 from entropic.process import Pipeline
 from entropic import results
 
 
-class Kinematic(Case):
+class KinematicExperiment(Iteration):
     speed = FloatField()
 
 
 class Process(Pipeline):
     source_path = "path/to/raw/results"
-    case = Kinematic
+    iteration = KinematicExperiment
 
     def extract(self, filename):
         """Specifies how to load each sample"""
@@ -51,11 +51,11 @@ class Process(Pipeline):
         return pd.DataFrame(data)
 
     def load(self, sample):
-        """Specifies how to calculate case values"""
+        """Specifies how to calculate iteration values"""
         self.speed = sample["x"] / sample["t"]
 
 
-# Load case into results
+# Load iteration into results
 results.include(Kinematic)
 ```
 
@@ -64,9 +64,9 @@ After running `entropic run` you can access your results with
 ```python
 from entropic import results
 
-for case in results.all:
-    print(case.speed)  # average speed value for all samples
-    for sample in case.samples:
+for iteration in results.all:
+    print(iteration.speed)  # average speed value for all samples
+    for sample in iteration.samples:
         print(sample.speed)  # calculated speed for sample
         print(sample.data)  # pandas dataframe
 ```
