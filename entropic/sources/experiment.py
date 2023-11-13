@@ -1,2 +1,2 @@
-class Experiment:
+class Case:
     ...

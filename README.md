@@ -26,16 +26,16 @@ for experiment in Results.all:  # Results.all is a generator
 ```
 
 ### Example upgrade
-A bit more complex example would involve creating an Experiment:
+A bit more complex example would involve creating a Case:
 
 ```python
 import pandas as pd
-from entropic.sources import Experiment, FloatField
+from entropic.sources import Case, FloatField
 from entropic.process import Pipeline
 from entropic.results import Results
 
 
-class Kinematic(Experiment):
+class Kinematic(Case):
     speed = FloatField()
 
 
