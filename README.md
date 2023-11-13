@@ -20,8 +20,8 @@ After running `entropic run` you can access your results with
 ```python
 from entropic.results import Results
 
-for experiment in Results.all:  # Results.all is a generator
-    for sample in experiment.samples:  # experiment.samples is a generator
+for case in Results.all:  # Results.all is a generator
+    for sample in case.samples:  # case.samples is a generator
         print(sample.data)  # pandas dataframe
 ```
 
@@ -41,7 +41,7 @@ class Kinematic(Case):
 
 class Process(Pipeline):
     source_path = "path/to/raw/results"
-    experiment = Kinematic
+    case = Kinematic
 
     def extract(self, filename):
         """Specifies how to load each sample"""
@@ -51,11 +51,11 @@ class Process(Pipeline):
         return pd.DataFrame(data)
 
     def load(self, sample):
-        """Specifies how to calculate experiment values"""
+        """Specifies how to calculate case values"""
         self.speed = sample["x"] / sample["t"]
 
 
-# Load experiment into results
+# Load case into results
 Results.include(Kinematic)
 ```
 
@@ -64,9 +64,9 @@ After running `entropic run` you can access your results with
 ```python
 from entropic.results import Results
 
-for experiment in Results.all:
-    print(experiment.speed)  # average speed value for all samples
-    for sample in experiment.samples:
+for case in Results.all:
+    print(case.speed)  # average speed value for all samples
+    for sample in case.samples:
         print(sample.speed)  # calculated speed for sample
         print(sample.data)  # pandas dataframe
 ```
