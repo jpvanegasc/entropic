@@ -9,4 +9,4 @@ class Results:
 
     @property
     def all(self) -> Iterable[Iteration]:
-        return self.database.find()
+        return self.database.all()

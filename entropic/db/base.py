@@ -9,9 +9,21 @@ class BaseHandler(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def find(self, **kwargs):
+    def get(self, **kwargs):
+        ...
+
+    @abc.abstractmethod
+    def all(self):
+        ...
+
+    @abc.abstractmethod
+    def filter(self, **kwargs):
         ...
 
     @abc.abstractmethod
     def insert_one(self, document: Collection):
+        ...
+
+    @abc.abstractmethod
+    def get_or_create(self, **kwargs):
         ...
