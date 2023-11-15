@@ -2,13 +2,13 @@ import os
 from typing import final, Optional, Callable
 from pathlib import Path
 
-from entropic.db import default_database
+from entropic.sources import Iteration
 
 from entropic.process.exceptions import PipelineSetupError
 
 
 class Pipeline:
-    database = default_database()
+    iteration = Iteration
 
     source_path: Optional[str | Path] = None
     filepaths: Optional[Callable] = None
@@ -35,4 +35,6 @@ class Pipeline:
 
     @final
     def run(self):
-        self.database.insert_one({"path": self.source_path})
+        self.iteration.database.get_or_create(path=self.source_path)
+        for filenames in self.filepaths:
+            print(filenames)
