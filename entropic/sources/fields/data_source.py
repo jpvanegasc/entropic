@@ -20,3 +20,6 @@ class DataSource(BaseField):
     def load_field(self, **kwargs):
         self.filename = kwargs.get("filename")
         return self
+
+    def dump(self):
+        return self.filename
