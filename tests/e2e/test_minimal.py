@@ -6,4 +6,9 @@ def test_minimal():
     pipeline.run()
 
     assert results.all
-    assert results.all == [{"path": "tests/mocks/"}]
+    assert results.all == [
+        {
+            "source_path": "tests/mocks/",
+            "samples": [{"data": "kinematic1.csv"}, {"data": "kinematic1.csv"}],
+        }
+    ]
