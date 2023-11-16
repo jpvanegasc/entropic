@@ -36,7 +36,7 @@ class Pipeline:
     @final
     def run(self):
         self.instance = self.iteration(
-            **self.iteration.database.get_or_create(path=self.source_path)
+            **self.iteration.database.get_or_create(source_path=self.source_path)
         )
         for filename in self.filepaths:
             self.iteration.samples.load_field(data=filename)
