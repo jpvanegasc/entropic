@@ -36,7 +36,7 @@ class Handler(BaseHandler):
         return self.database.search(query)
 
     def insert_one(self, document):
-        self.database.insert(document)
+        return self.database.insert(document)
 
     def get_or_create(self, **kwargs):
         item = self.get(**kwargs)
@@ -45,3 +45,8 @@ class Handler(BaseHandler):
             self.insert_one(item)
 
         return item
+
+    def upsert(self, document, key: Optional[dict] = None):
+        if not key:
+            key = {"key": "id", "value": document.get("id")}
+        return self.database.upsert(document, where(key["key"]) == key["value"])
