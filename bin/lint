@@ -1,4 +1,4 @@
 # !/bin/bash
 black "$(pwd)/entropic" "$(pwd)/tests"
-ruff "$(pwd)/entropic" "$(pwd)/tests"
+ruff "$(pwd)/entropic" "$(pwd)/tests" --fix
 mypy "$(pwd)/entropic" "$(pwd)/tests"
