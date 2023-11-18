@@ -2,4 +2,5 @@ import pandas as pd
 
 
 class PandasReadMixin:
-    read_csv = pd.read_csv
+    def read_csv(self, filename):
+        return pd.read_csv(filename)
