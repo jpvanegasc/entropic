@@ -1,4 +1,4 @@
-from typing import List, Iterator, overload
+from typing import List, Iterator, overload, Iterable
 
 
 class ListFieldMixin:
@@ -16,8 +16,11 @@ class ListFieldMixin:
     def __getitem__(self, s: slice) -> List:
         ...
 
-    def __getitem__(self, value) -> List:
-        return self._sequence.__getitem__(value)
+    def __getitem__(self, __value) -> List:
+        return self._sequence.__getitem__(__value)
 
-    def append(self, _object) -> None:
-        return self._sequence.append(_object)
+    def append(self, __object) -> None:
+        return self._sequence.append(__object)
+
+    def extend(self, __iterable: Iterable) -> None:
+        return self._sequence.extend(__iterable)

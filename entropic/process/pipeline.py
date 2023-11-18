@@ -21,7 +21,7 @@ class Pipeline:
         if not self.extract_with:
             self.extract_with = self.extract
         if not self.filepaths:
-            self.filepaths = os.listdir(self.source_path)
+            self.filepaths = self._default_filepaths
 
     def _validate_setup(self):
         if not (self.source_path or self.filepaths):
@@ -33,12 +33,19 @@ class Pipeline:
                 "either 'extract_with' or 'extract' must be defined"
             )
 
+    def _default_filepaths(self):
+        return [
+            os.path.join(self.source_path, file)
+            for file in os.listdir(self.source_path)
+        ]
+
     @final
     def run(self):
         self.instance = self.iteration(
             **self.iteration.database.get_or_create(source_path=self.source_path)
         )
-        for filename in self.filepaths:
-            self.iteration.samples.load_field(data=filename)
+        for file_path in self.filepaths():
+            df = self.extract_with(file_path)
+            self.iteration.samples.add(data=dict(filename=file_path, data_frame=df))
 
         self.instance.save()

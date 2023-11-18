@@ -8,6 +8,11 @@ class SamplesField(BaseField, ListFieldMixin):
         self.sample_class = sample_cls
 
     def load_field(self, **kwargs):
+        samples = kwargs.get("samples", [])
+        self.extend(samples)
+        return samples
+
+    def add(self, **kwargs):
         sample = self.sample_class(**kwargs)
         self.append(sample)
         return sample
