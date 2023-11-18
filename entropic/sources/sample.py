@@ -8,7 +8,7 @@ class Sample(PandasReadMixin):
     fields = {"data": data}
 
     def __init__(self, **kwargs):
-        self.data = self.data.load_field(filename=kwargs.get("data"))
+        self.data = self.data.load(filename=kwargs.get("filename"))
 
     def dump(self):
         return {name: field.dump() for name, field in self.fields.items()}

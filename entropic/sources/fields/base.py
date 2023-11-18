@@ -3,7 +3,7 @@ import abc
 
 class BaseField(abc.ABC):
     @abc.abstractmethod
-    def load_field(self, **kwargs):
+    def load(self, **kwargs):
         ...
 
     @abc.abstractmethod

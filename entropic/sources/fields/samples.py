@@ -7,7 +7,7 @@ class SamplesField(BaseField, ListFieldMixin):
         super().__init__(*args, **kwargs)
         self.sample_class = sample_cls
 
-    def load_field(self, **kwargs):
+    def load(self, **kwargs):
         samples = kwargs.get("samples", [])
         self.extend(samples)
         return samples

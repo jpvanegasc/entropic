@@ -17,7 +17,7 @@ class DataSource(BaseField):
             return clean
         raise ValueError(f"unsupported filetype '{filetype}'")
 
-    def load_field(self, **kwargs):
+    def load(self, **kwargs):
         self.filename = kwargs.get("filename")
         return self
 
