@@ -19,7 +19,7 @@ class DataSource(BaseField):
         raise ValueError(f"unsupported filetype '{filetype}'")
 
     def load(self, **kwargs):
-        self.filename = kwargs.get("file_path")
+        self.file_path = kwargs.get("file_path")
         self.raw = kwargs.get("raw")
 
     def dump(self):

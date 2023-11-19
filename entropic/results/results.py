@@ -7,6 +7,9 @@ class Results:
     database = default_database()
     iteration = Iteration
 
+    def _load(self, document):
+        return self.iteration(**document)
+
     @property
     def all(self) -> Iterable[Iteration]:
-        return [self.iteration(**item) for item in self.database.all()]
+        return [self._load(item) for item in self.database.all()]
