@@ -46,6 +46,10 @@ class Pipeline:
         )
         for file_path in self.filepaths():
             df = self.extract_with(file_path)
-            self.iteration.samples.add(data=dict(filename=file_path, data_frame=df))
+            self.instance.samples.add(
+                **{
+                    "data": {"file_path": file_path, "raw": df.to_json()},
+                }
+            )
 
         self.instance.save()

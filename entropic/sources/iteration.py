@@ -13,7 +13,7 @@ class Iteration:
     fields = {"source_path": source_path, "samples": samples}
 
     def __init__(self, **kwargs):
-        self.source_path = self.source_path.load(value=kwargs.get("source_path"))
+        self.source_path.load(value=kwargs.get("source_path"))
 
     def dump(self) -> dict:
         obj = {}
