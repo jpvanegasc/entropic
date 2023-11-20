@@ -19,6 +19,11 @@ class DataSource(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
+    def __eq__(self, other: object):
+        if not isinstance(other, DataSource):
+            return False
+        return self.file_path == other.file_path
+
     @field_serializer("raw")
     def serialize_raw(self, raw: str | pd.DataFrame):
         if isinstance(raw, pd.DataFrame):

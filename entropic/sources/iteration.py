@@ -1,6 +1,6 @@
-from typing import List, ClassVar, TypeAlias
+from typing import Set, ClassVar, TypeAlias
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 from entropic.db import default_database
 
@@ -11,8 +11,12 @@ class Iteration(BaseModel):
     database: ClassVar = default_database()
     sample_class: ClassVar[TypeAlias] = Sample
 
-    samples: List[sample_class] = Field(default=[])
+    samples: Set[sample_class] = Field(default_factory=set)
     source_path: str
+
+    @field_serializer("samples")
+    def serialize_samples(self, samples):
+        return list(samples)
 
     def save(self):
         self.database.upsert(
@@ -23,5 +27,5 @@ class Iteration(BaseModel):
     def add_sample(self, sample=None, **kwargs):
         if not sample:
             sample = self.sample_class(**kwargs)
-        self.samples.append(sample)
+        self.samples.add(sample)
         return sample
