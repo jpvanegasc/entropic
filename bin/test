@@ -1,0 +1,8 @@
+# !/bin/bash
+coverage run -m pytest tests/
+
+if [[ "$#" -gt 0 && "$1" == "--display-results" ]]; then
+    coverage html
+    coverage report
+fi
+
