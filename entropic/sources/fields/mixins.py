@@ -8,6 +8,9 @@ class ListFieldMixin:
     def __iter__(self) -> Iterator:
         return self._sequence.__iter__()
 
+    def __len__(self) -> int:
+        return self._sequence.__len__()
+
     @overload
     def __getitem__(self, i: int) -> List:
         ...
