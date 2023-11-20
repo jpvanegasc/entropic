@@ -8,7 +8,7 @@ class Results:
     iteration = Iteration
 
     def _load(self, document_list: Sequence[Dict]) -> Sequence[Iteration]:
-        return [self.iteration.parse_obj(document) for document in document_list]
+        return [self.iteration.model_validate(document) for document in document_list]
 
     @property
     def all(self) -> Sequence[Iteration]:

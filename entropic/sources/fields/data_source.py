@@ -4,7 +4,13 @@ import io
 from pathlib import Path
 
 import pandas as pd
-from pydantic import BaseModel, field_serializer
+from pydantic import (
+    BaseModel,
+    field_serializer,
+    field_validator,
+    ValidationError,
+    ConfigDict,
+)
 
 SUPPORTED_FILETYPES = [
     "csv",
@@ -16,8 +22,7 @@ class DataSource(BaseModel):
     raw: str | pd.DataFrame
     filetype: str = "csv"
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def __eq__(self, other: object):
         if not isinstance(other, DataSource):
@@ -29,6 +34,16 @@ class DataSource(BaseModel):
         if isinstance(raw, pd.DataFrame):
             return self._dump_data_frame(raw)
         return raw
+
+    @field_validator("raw")
+    @classmethod
+    def validate_raw(cls, value: str | pd.DataFrame) -> pd.DataFrame:
+        if isinstance(value, pd.DataFrame):
+            return value
+        try:
+            return cls._load_data_frame(value)
+        except Exception:
+            raise ValidationError("unable to load a `pandas.DataFrame` object from raw")
 
     @staticmethod
     def _dump_data_frame(data_frame: pd.DataFrame) -> str:
