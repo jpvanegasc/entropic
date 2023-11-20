@@ -2,46 +2,28 @@ import zlib
 import base64
 import io
 from pathlib import Path
-from dataclasses import dataclass
 
 import pandas as pd
-
+from pydantic import BaseModel, field_serializer
 
 SUPPORTED_FILETYPES = [
     "csv",
 ]
 
 
-class DataSource:
-    @dataclass
-    class DataSourceRaw:
-        filetype: str
-        file_path: str | Path
-        raw: pd.DataFrame
+class DataSource(BaseModel):
+    file_path: str | Path
+    raw: str | pd.DataFrame
+    filetype: str = "csv"
 
-    def __init__(self, filetype="csv", **kwargs):
-        self.filetype = self._validate_filetype(filetype)
+    class Config:
+        arbitrary_types_allowed = True
 
-    @staticmethod
-    def _validate_filetype(filetype: str):
-        clean = filetype.strip().replace(".", "").lower()
-        if clean in SUPPORTED_FILETYPES:
-            return clean
-        raise ValueError(f"unsupported filetype '{filetype}'")
-
-    def load(self, **kwargs) -> DataSourceRaw:
-        return self.DataSourceRaw(
-            filetype=self.filetype,
-            file_path=kwargs["file_path"],
-            raw=kwargs["raw"],
-        )
-
-    @classmethod
-    def dump(cls, data_source_raw: DataSourceRaw) -> dict:
-        return {
-            "file_path": data_source_raw.file_path,
-            "raw": cls._dump_data_frame(data_source_raw.raw),
-        }
+    @field_serializer("raw")
+    def serialize_raw(self, raw: str | pd.DataFrame):
+        if isinstance(raw, pd.DataFrame):
+            return self._dump_data_frame(raw)
+        return raw
 
     @staticmethod
     def _dump_data_frame(data_frame: pd.DataFrame) -> str:

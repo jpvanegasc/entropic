@@ -45,7 +45,7 @@ class Pipeline:
             **self.iteration.database.get_or_create(source_path=self.source_path)
         )
         for file_path in self.filepaths():
-            self.instance.samples.add(
+            self.instance.add_sample(
                 **{
                     "data": {
                         "file_path": file_path,
