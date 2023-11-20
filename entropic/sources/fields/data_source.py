@@ -2,25 +2,25 @@ import zlib
 import base64
 import io
 from pathlib import Path
+from dataclasses import dataclass
 
 import pandas as pd
 
-from entropic.sources.fields.base import BaseField
 
 SUPPORTED_FILETYPES = [
     "csv",
 ]
 
 
-class DataSource(BaseField):
-    filetype: str
-    file_path: str | Path
-    raw: pd.DataFrame
+class DataSource:
+    @dataclass
+    class DataSourceRaw:
+        filetype: str
+        file_path: str | Path
+        raw: pd.DataFrame
 
     def __init__(self, filetype="csv", **kwargs):
         self.filetype = self._validate_filetype(filetype)
-        self.file_path = kwargs.get("file_path")
-        self.raw = kwargs.get("raw")
 
     @staticmethod
     def _validate_filetype(filetype: str):
@@ -29,14 +29,18 @@ class DataSource(BaseField):
             return clean
         raise ValueError(f"unsupported filetype '{filetype}'")
 
-    def load(self, **kwargs):
-        self.file_path = kwargs.get("file_path")
-        self.raw = kwargs.get("raw")
+    def load(self, **kwargs) -> DataSourceRaw:
+        return self.DataSourceRaw(
+            filetype=self.filetype,
+            file_path=kwargs["file_path"],
+            raw=kwargs["raw"],
+        )
 
-    def dump(self):
+    @classmethod
+    def dump(cls, data_source_raw: DataSourceRaw) -> dict:
         return {
-            "file_path": self.file_path,
-            "raw": self._dump_data_frame(self.raw),
+            "file_path": data_source_raw.file_path,
+            "raw": cls._dump_data_frame(data_source_raw.raw),
         }
 
     @staticmethod

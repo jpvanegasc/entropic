@@ -1,7 +1,4 @@
-from entropic.sources.fields.base import BaseField
-
-
-class StringField(BaseField):
+class StringField:
     def load(self, **kwargs):
         self.value = kwargs.get("value", "")
 

@@ -1,8 +1,7 @@
 from entropic.sources.fields.mixins import ListFieldMixin
-from entropic.sources.fields.base import BaseField
 
 
-class SamplesField(BaseField, ListFieldMixin):
+class SamplesField(ListFieldMixin):
     def __init__(self, sample_cls, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.sample_class = sample_cls

@@ -6,15 +6,18 @@ class Sample(PandasReadMixin):
     data = DataSource()
 
     data_fields = {"data": data}
-    fields = {**data_fields}
 
     def __init__(self, **kwargs):
         for field_name, field in self.data_fields.items():
             if field_data := kwargs.get(field_name):
-                field.load(**field_data)
+                setattr(self, f"{field_name}_raw", field.load(**field_data))
 
-    def dump(self):
-        return {name: field.dump() for name, field in self.fields.items()}
+    def dump(self) -> dict:
+        document = {}
+        for field_name, field in self.data_fields.items():
+            field_data = getattr(self, f"{field_name}_raw", None)
+            document[field_name] = field.dump(field_data) if field_data else None
+        return document
 
     @classmethod
     def from_dict(cls, document: dict) -> "Sample":
