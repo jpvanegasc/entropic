@@ -1,6 +1,6 @@
 from typing import List, ClassVar, TypeAlias
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from entropic.db import default_database
 
@@ -11,7 +11,7 @@ class Iteration(BaseModel):
     database: ClassVar = default_database()
     sample_class: ClassVar[TypeAlias] = Sample
 
-    samples: List[sample_class]
+    samples: List[sample_class] = Field(default=[])
     source_path: str
 
     def save(self):
