@@ -8,7 +8,6 @@ from pydantic import (
     BaseModel,
     field_serializer,
     field_validator,
-    ValidationError,
     ConfigDict,
 )
 
@@ -43,7 +42,7 @@ class DataSource(BaseModel):
         try:
             return cls._load_data_frame(value)
         except Exception:
-            raise ValidationError("unable to load a `pandas.DataFrame` object from raw")
+            raise ValueError("unable to load a `pandas.DataFrame` object from raw")
 
     @staticmethod
     def _dump_data_frame(data_frame: pd.DataFrame) -> str:
