@@ -45,10 +45,12 @@ class Pipeline:
             **self.iteration.database.get_or_create(source_path=self.source_path)
         )
         for file_path in self.filepaths():
-            df = self.extract_with(file_path)
             self.instance.samples.add(
                 **{
-                    "data": {"file_path": file_path, "raw": df.to_json()},
+                    "data": {
+                        "file_path": file_path,
+                        "raw": self.extract_with(file_path),
+                    },
                 }
             )
 
