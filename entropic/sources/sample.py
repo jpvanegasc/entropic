@@ -15,3 +15,13 @@ class Sample(PandasReadMixin):
 
     def dump(self):
         return {name: field.dump() for name, field in self.fields.items()}
+
+    @classmethod
+    def from_dict(cls, document: dict) -> "Sample":
+        for field_name, field in cls.data_fields.items():
+            if value := document.get(field_name):
+                document[field_name]["raw"] = field._load_data_frame(value["raw"])
+
+        instance = cls(**document)
+
+        return instance

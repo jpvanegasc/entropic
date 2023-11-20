@@ -12,8 +12,9 @@ class SamplesField(BaseField, ListFieldMixin):
         self.extend(samples)
         return samples
 
-    def add(self, **kwargs):
-        sample = self.sample_class(**kwargs)
+    def add(self, sample=None, **kwargs):
+        if not sample:
+            sample = self.sample_class(**kwargs)
         self.append(sample)
         return sample
 

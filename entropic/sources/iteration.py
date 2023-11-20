@@ -25,3 +25,12 @@ class Iteration:
         self.database.upsert(
             self.dump(), key={"key": "source_path", "value": self.source_path.dump()}
         )
+
+    @classmethod
+    def from_dict(cls, document: dict) -> "Iteration":
+        samples = document.pop("samples", [])
+        instance = cls(**document)
+        sample_cls = instance.samples.sample_class
+        for sample in samples:
+            instance.samples.add(sample=sample_cls.from_dict(sample))
+        return instance
