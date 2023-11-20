@@ -1,5 +1,6 @@
 import zlib
-import json
+import base64
+import io
 from pathlib import Path
 
 import pandas as pd
@@ -18,8 +19,8 @@ class DataSource(BaseField):
 
     def __init__(self, filetype="csv", **kwargs):
         self.filetype = self._validate_filetype(filetype)
-        self.file_path = None
-        self.raw = None
+        self.file_path = kwargs.get("file_path")
+        self.raw = kwargs.get("raw")
 
     @staticmethod
     def _validate_filetype(filetype: str):
@@ -38,19 +39,18 @@ class DataSource(BaseField):
             "raw": self._dump_data_frame(self.raw),
         }
 
-    @classmethod
-    def from_dict(cls, document: dict) -> "DataSource":
-        document["raw"] = cls._load_data_frame(document["raw"])
-        return cls(**document)
-
     @staticmethod
     def _dump_data_frame(data_frame: pd.DataFrame) -> str:
-        data_frame_bytes = data_frame.to_json().encode("ascii")
+        data_frame_bytes = data_frame.to_json().encode()
         compressed = zlib.compress(data_frame_bytes)
-        return compressed.decode("ascii", errors="ignore")
+        compressed_b64 = base64.b64encode(compressed)
+        compressed_b64_string = compressed_b64.decode()
+        return compressed_b64_string
 
     @staticmethod
     def _load_data_frame(compressed: str) -> pd.DataFrame:
-        uncompressed = zlib.decompress(compressed.encode("ascii"))
-        data_frame_dict = json.loads(uncompressed.decode("ascii", errors="ignore"))
-        return pd.DataFrame.from_dict(data_frame_dict)
+        compressed_b64_bytes = compressed.encode()
+        compressed_b64 = base64.b64decode(compressed_b64_bytes)
+        uncompressed = zlib.decompress(compressed_b64)
+        data_frame = pd.read_json(io.BytesIO(uncompressed))
+        return data_frame
