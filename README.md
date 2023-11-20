@@ -1,5 +1,5 @@
 # Entropic
-A simple data processing framework for physics that can be integrated with data processing pipelines for a quick, no-frills setup.
+A simple data processing framework for a quick, no-frills setup of a data pipeline.
 
 ## Usage
 ### Absolute minimum
@@ -13,7 +13,7 @@ from entropic.process import Pipeline
 
 class Process(Pipeline):
     source_path = "path/to/raw/results"
-    extract_with = Sample.read_csv  # wrapper over pandas.read_csv()
+    extract_with = Sample.read_csv
 
 
 if __name__ == "__main__":
@@ -29,5 +29,5 @@ from entropic import results
 
 for iteration in results.all:
     for sample in iteration.samples:
-        print(sample.data)  # pandas dataframe
+        print(sample.data)
 ```
