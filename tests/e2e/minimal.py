@@ -1,10 +1,11 @@
-from entropic.sources import Sample
+import pandas as pd
+
 from entropic.process import Pipeline
 
 
 class Process(Pipeline):
     source_path = "tests/mocks/"
-    extract_with = Sample.read_csv
+    extract_with = pd.read_csv
 
 
 if __name__ == "__main__":

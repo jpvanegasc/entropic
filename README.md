@@ -7,13 +7,13 @@ The simples, most minimal setup for entropic is just declaring the pipeline sour
 
 ```python
 # pipeline.py
-from entropic.sources import Sample
+import pandas as pd
 from entropic.process import Pipeline
 
 
 class Process(Pipeline):
     source_path = "path/to/raw/results"
-    extract_with = Sample.read_csv
+    extract_with = pd.read_csv
 
 
 if __name__ == "__main__":
