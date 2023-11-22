@@ -5,22 +5,20 @@ from entropic.process import exceptions
 
 
 def test_required_definitions():
-    # Pipeline cant be instantiated
     with pytest.raises(exceptions.PipelineSetupError) as error:
         Pipeline()
-    #  TODO: change
-    # assert str(error.value) == "can't instantiate Pipeline directly"
-
-    class TestNoExtract(Pipeline):
-        source_path = "test/path"
+    assert str(error.value) == "can't instantiate Pipeline directly"
 
     with pytest.raises(exceptions.PipelineSetupError) as error:
-        TestNoExtract()
+
+        class TestNoExtract(Pipeline):
+            source_path = "test/path"
+
     assert str(error.value) == "either 'extract_with' or 'extract' must be defined"
 
-    class TestNoSource(Pipeline):
-        extract_with = lambda x: x  # noqa: E731
-
     with pytest.raises(exceptions.PipelineSetupError) as error:
-        TestNoSource()
+
+        class TestNoSource(Pipeline):
+            extract_with = lambda x: x  # noqa: E731
+
     assert str(error.value) == "either 'source_path' or 'filepaths' must be defined"

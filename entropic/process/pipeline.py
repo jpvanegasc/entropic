@@ -7,7 +7,36 @@ from entropic.sources import Iteration
 from entropic.process.exceptions import PipelineSetupError
 
 
-class Pipeline:
+def default_filepaths(self):
+    return [
+        os.path.join(self.source_path, file) for file in os.listdir(self.source_path)
+    ]
+
+
+class PipelineMeta(type):
+    def __new__(cls, name, bases, attrs):
+        if not bases:
+            # Pipeline instantiation error handled in Pipeline.__init__
+            return super().__new__(cls, name, bases, attrs)
+
+        if not (attrs.get("source_path") or attrs.get("filepaths")):
+            raise PipelineSetupError(
+                "either 'source_path' or 'filepaths' must be defined"
+            )
+        if not (attrs.get("extract_with") or attrs.get("extract")):
+            raise PipelineSetupError(
+                "either 'extract_with' or 'extract' must be defined"
+            )
+
+        if extract_with := attrs.get("extract_with"):
+            attrs["extract_with"] = staticmethod(extract_with)
+        if not attrs.get("filepaths"):
+            attrs["filepaths"] = default_filepaths
+
+        return super().__new__(cls, name, bases, attrs)
+
+
+class Pipeline(metaclass=PipelineMeta):
     iteration = Iteration
 
     source_path: Optional[str | Path] = None
@@ -17,27 +46,8 @@ class Pipeline:
     extract: Optional[Callable] = None
 
     def __init__(self):
-        self._validate_setup()
-        if not self.extract_with:
-            self.extract_with = self.extract
-        if not self.filepaths:
-            self.filepaths = self._default_filepaths
-
-    def _validate_setup(self):
-        if not (self.source_path or self.filepaths):
-            raise PipelineSetupError(
-                "either 'source_path' or 'filepaths' must be defined"
-            )
-        if not (self.extract_with or self.extract):
-            raise PipelineSetupError(
-                "either 'extract_with' or 'extract' must be defined"
-            )
-
-    def _default_filepaths(self):
-        return [
-            os.path.join(self.source_path, file)
-            for file in os.listdir(self.source_path)
-        ]
+        if type(self) == Pipeline:
+            raise PipelineSetupError("can't instantiate Pipeline directly")
 
     @final
     def run(self):
