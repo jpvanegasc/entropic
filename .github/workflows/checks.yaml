@@ -1,0 +1,34 @@
+name: Acceptance
+on: push
+jobs:
+  check-lint:
+    name: Check Lint
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python environment
+      uses: actions/setup-python@v1
+      with:
+        python-version: "3.10"
+    - name: Install requirements
+      run: pip install -r requirements-dev.txt
+    - name: Black
+      run: black --check entropic/ tests/
+    - name: Ruff
+      run: ruff entropic/ tests/
+    - name: Mypy
+      run: mypy entropic/ tests/
+
+  check-tests:
+    name: Check Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python environment
+        uses: actions/setup-python@v1
+        with:
+          python-version: "3.10"
+      - name: Install requirements
+        run: pip install -r requirements-test.txt
+      - name: Tests run
+        run: bin/test --coverage

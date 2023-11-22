@@ -1,8 +1,8 @@
 # !/bin/bash
 coverage run -m pytest tests/
 
-if [[ "$#" -gt 0 && "$1" == "--display-results" ]]; then
+if [[ "$#" -gt 0 && "$1" == "--coverage" ]]; then
+    coverage report --fail-under=90
+elif [[ "$#" -gt 0 && "$1" == "--coverage-html" ]]; then
     coverage html
-    coverage report
 fi
-
