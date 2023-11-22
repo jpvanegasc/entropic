@@ -13,7 +13,7 @@ jobs:
     - name: Install requirements
       run: pip install -r requirements-dev.txt
     - name: Black
-      run: black --check app
+      run: black --check entropic/ tests/
     - name: Ruff
       run: ruff entropic/ tests/
     - name: Mypy
