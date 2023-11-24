@@ -1,4 +1,5 @@
 import os
+import warnings
 from typing import final, Optional, Callable
 from pathlib import Path
 
@@ -28,10 +29,24 @@ class PipelineMeta(type):
                 "either 'extract_with' or 'extract' must be defined"
             )
 
+        if attrs.get("source_path") and attrs.get("filepaths"):
+            warnings.warn(
+                "both 'source_path' and 'filepaths' defined, ignoring 'source_path'",
+                stacklevel=2,
+            )
+        if attrs.get("extract_with") and attrs.get("extract"):
+            warnings.warn(
+                "both 'extract_with' and 'extract' are defined, ignoring 'extract'",
+                stacklevel=2,
+            )
+
         if extract_with := attrs.get("extract_with"):
             attrs["extract_with"] = staticmethod(extract_with)
         if not attrs.get("filepaths"):
             attrs["filepaths"] = default_filepaths
+        if not attrs.get("source_path"):
+            filepaths = attrs["filepaths"]
+            attrs["source_path"] = f"<{filepaths.__qualname__}>"
 
         return super().__new__(cls, name, bases, attrs)
 
