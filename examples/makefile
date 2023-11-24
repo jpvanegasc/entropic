@@ -1,6 +1,6 @@
-.PHONY : minimal
+.PHONY : essential
 
 .SILENT :
 
-minimal : minimal.py
-	PYTHONPATH=.. python3 minimal.py
+essential : essential.py
+	PYTHONPATH=.. python3 essential.py

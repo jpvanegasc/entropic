@@ -7,7 +7,7 @@ from entropic.sources import Iteration
 
 
 @pytest.fixture
-def run_minimal_pipeline():
+def run_essential_pipeline():
     class Process(Pipeline):
         source_path = "tests/mocks/"
         extract_with = pd.read_csv
@@ -16,7 +16,7 @@ def run_minimal_pipeline():
     pipeline.run()
 
 
-def test_minimal(run_minimal_pipeline):
+def test_essential(run_essential_pipeline):
     assert len(results.all) == 1
 
     result = results.all[0]
