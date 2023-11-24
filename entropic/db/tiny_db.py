@@ -8,6 +8,10 @@ from entropic.db.base import BaseHandler
 class Handler(BaseHandler):
     PATH = "./.entropic-db"
 
+    def __init__(self, path=None):
+        if path:
+            self.PATH = path
+
     @property
     def database(self) -> TinyDB:
         return TinyDB(self.PATH)

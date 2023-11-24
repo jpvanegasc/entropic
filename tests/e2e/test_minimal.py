@@ -1,14 +1,22 @@
+import pytest
 import pandas as pd
 
+from entropic import results
+from entropic.process import Pipeline
+from entropic.sources import Iteration
 
-def test_minimal():
-    from minimal import Process
-    from entropic import results
-    from entropic.sources import Iteration
+
+@pytest.fixture
+def run_minimal_pipeline():
+    class Process(Pipeline):
+        source_path = "tests/mocks/"
+        extract_with = pd.read_csv
 
     pipeline = Process()
     pipeline.run()
 
+
+def test_minimal(run_minimal_pipeline):
     assert len(results.all) == 1
 
     result = results.all[0]

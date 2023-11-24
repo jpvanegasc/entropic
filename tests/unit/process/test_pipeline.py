@@ -22,3 +22,15 @@ def test_required_definitions():
             extract_with = lambda x: x  # noqa: E731
 
     assert str(error.value) == "either 'source_path' or 'filepaths' must be defined"
+
+
+def test_default_functions():
+    def my_extract_function(filename):
+        return filename
+
+    class TestDefaults(Pipeline):
+        source_path = "test/path"
+        extract_with = my_extract_function
+
+    assert TestDefaults.extract_with == my_extract_function
+    assert TestDefaults.filepaths is not None
