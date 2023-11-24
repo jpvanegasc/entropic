@@ -29,10 +29,8 @@ class DataSource(BaseModel):
         return self.file_path == other.file_path
 
     @field_serializer("raw")
-    def serialize_raw(self, raw: str | pd.DataFrame):
-        if isinstance(raw, pd.DataFrame):
-            return self._dump_data_frame(raw)
-        return raw
+    def serialize_raw(self, raw: pd.DataFrame):
+        return self._dump_data_frame(raw)
 
     @field_validator("raw")
     @classmethod
