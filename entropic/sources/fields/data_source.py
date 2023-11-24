@@ -44,7 +44,7 @@ class DataSource(BaseModel):
 
     @staticmethod
     def _dump_data_frame(data_frame: pd.DataFrame) -> str:
-        data_frame_bytes= data_frame.to_parquet()
+        data_frame_bytes = data_frame.to_parquet()
         compressed = zlib.compress(data_frame_bytes)
         compressed_b64 = base64.b64encode(compressed)
         compressed_b64_string = compressed_b64.decode()
