@@ -44,7 +44,7 @@ class DataSource(BaseModel):
 
     @staticmethod
     def _dump_data_frame(data_frame: pd.DataFrame) -> str:
-        data_frame_bytes = data_frame.to_json().encode()
+        data_frame_bytes= data_frame.to_parquet()
         compressed = zlib.compress(data_frame_bytes)
         compressed_b64 = base64.b64encode(compressed)
         compressed_b64_string = compressed_b64.decode()
@@ -55,5 +55,5 @@ class DataSource(BaseModel):
         compressed_b64_bytes = compressed.encode()
         compressed_b64 = base64.b64decode(compressed_b64_bytes)
         uncompressed = zlib.decompress(compressed_b64)
-        data_frame = pd.read_json(io.BytesIO(uncompressed))
+        data_frame = pd.read_parquet(io.BytesIO(uncompressed))
         return data_frame
