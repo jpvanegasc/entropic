@@ -1,8 +1,10 @@
 import os
+import warnings
 from typing import final, Optional, Callable
 from pathlib import Path
 
-from entropic.sources import Iteration
+from entropic.sources import Iteration, Sample
+from entropic.sources.fields import DataSource
 
 from entropic.process.exceptions import PipelineSetupError
 
@@ -28,10 +30,24 @@ class PipelineMeta(type):
                 "either 'extract_with' or 'extract' must be defined"
             )
 
+        if attrs.get("source_path") and attrs.get("filepaths"):
+            warnings.warn(
+                "both 'source_path' and 'filepaths' defined, ignoring 'source_path'",
+                stacklevel=2,
+            )
+        if attrs.get("extract_with") and attrs.get("extract"):
+            warnings.warn(
+                "both 'extract_with' and 'extract' are defined, ignoring 'extract_with'",
+                stacklevel=2,
+            )
+
         if extract_with := attrs.get("extract_with"):
             attrs["extract_with"] = staticmethod(extract_with)
         if not attrs.get("filepaths"):
             attrs["filepaths"] = default_filepaths
+        if not attrs.get("source_path"):
+            filepaths = attrs["filepaths"]
+            attrs["source_path"] = f"<{filepaths.__qualname__}>"
 
         return super().__new__(cls, name, bases, attrs)
 
@@ -42,26 +58,29 @@ class Pipeline(metaclass=PipelineMeta):
     source_path: Optional[str | Path] = None
     filepaths: Optional[Callable] = None
 
-    extract_with: Optional[Callable] = None
-    extract: Optional[Callable] = None
+    extract_with: Callable
 
     def __init__(self):
         if type(self) == Pipeline:
             raise PipelineSetupError("can't instantiate Pipeline directly")
 
+    def extract(self, file_path) -> Sample:
+        data_source_data = self.extract_with(file_path)
+        return Sample(data=DataSource(file_path=file_path, raw=data_source_data))
+
     @final
-    def run(self):
+    def run_sample_extraction(self):
         self.instance = self.iteration(
             **self.iteration.database.get_or_create(source_path=self.source_path)
         )
         for file_path in self.filepaths():
-            self.instance.add_sample(
-                **{
-                    "data": {
-                        "file_path": file_path,
-                        "raw": self.extract_with(file_path),
-                    },
-                }
-            )
+            sample = self.extract(file_path)
+            self.instance.add_sample(sample=sample)
 
-        self.instance.save()
+        return self.instance.save()
+
+    @final
+    def run(self):
+        iteration_id = self.run_sample_extraction()
+        # TODO: add load methods
+        return iteration_id

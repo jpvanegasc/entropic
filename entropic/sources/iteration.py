@@ -19,13 +19,11 @@ class Iteration(BaseModel):
         return list(samples)
 
     def save(self):
-        self.database.upsert(
+        return self.database.upsert(
             self.model_dump(),
             key={"key": "source_path", "value": self.source_path},
         )
 
-    def add_sample(self, sample=None, **kwargs):
-        if not sample:
-            sample = self.sample_class(**kwargs)
+    def add_sample(self, sample):
         self.samples.add(sample)
         return sample
