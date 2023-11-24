@@ -46,7 +46,7 @@ def test_required_definitions():
     )
     assert (
         str(warnings[1].message)
-        == "both 'extract_with' and 'extract' are defined, ignoring 'extract'"
+        == "both 'extract_with' and 'extract' are defined, ignoring 'extract_with'"
     )
 
 
