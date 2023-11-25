@@ -23,11 +23,6 @@ class DataSource(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def __eq__(self, other: object):
-        if not isinstance(other, DataSource):
-            return False
-        return self.file_path == other.file_path
-
     @field_serializer("raw")
     def serialize_raw(self, raw: pd.DataFrame):
         return self._dump_data_frame(raw)

@@ -1,4 +1,4 @@
-from typing import Set, ClassVar, TypeAlias
+from typing import ClassVar, TypeAlias
 
 from pydantic import BaseModel, Field, field_serializer
 
@@ -11,7 +11,7 @@ class Iteration(BaseModel):
     database: ClassVar = default_database()
     sample_class: ClassVar[TypeAlias] = Sample
 
-    samples: Set[sample_class] = Field(default_factory=set)
+    samples: list[sample_class] = Field(default_factory=list)
     source_path: str
 
     @field_serializer("samples")
@@ -24,6 +24,10 @@ class Iteration(BaseModel):
             key={"key": "source_path", "value": self.source_path},
         )
 
-    def add_sample(self, sample):
-        self.samples.add(sample)
+    def upsert_sample(self, sample):
+        try:
+            if index := self.samples.index(sample):
+                self.samples[index] = sample
+        except ValueError:
+            self.samples.append(sample)
         return sample

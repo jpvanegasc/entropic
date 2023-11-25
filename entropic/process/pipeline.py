@@ -75,7 +75,7 @@ class Pipeline(metaclass=PipelineMeta):
         )
         for file_path in self.filepaths():
             sample = self.extract(file_path)
-            self.instance.add_sample(sample=sample)
+            self.instance.upsert_sample(sample=sample)
 
         return self.instance.save()
 
