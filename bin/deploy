@@ -1,0 +1,21 @@
+# !/bin/bash
+rm -r dist/
+python -m build
+if ! twine check dist/* ; then
+    echo "Failed twine check"
+    exit 1
+fi
+
+echo ""
+echo "Confirm this deploy is meant for PyPI, not TestPyPI."
+echo "Note 'yes' means its meant for PyPI, 'no' means its meant for TestPyPI!"
+CONFIRMATION=""
+while [ "$CONFIRMATION" != "yes" ] && [ "$CONFIRMATION" != "no" ]; do
+    read -p "Type (yes/no): " CONFIRMATION
+done
+
+if [ "$CONFIRMATION" == "yes" ]; then
+    twine upload dist/*
+else
+    twine upload -r testpypi dist/*
+fi
