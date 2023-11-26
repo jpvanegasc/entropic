@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "entropic"
-version = "0.0.1-alpha"
-description = "Entropic, physics data processing framework"
+version = "0.1.0"
+description = "Entropic, the simple data pipeline framework for scientists."
 readme = "README.md"
 license = "MIT"
 authors = [
@@ -16,6 +16,11 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
+    "Topic :: Utilities",
+    "Topic :: Scientific/Engineering",
 ]
 dependencies = [
     "pydantic>=2.5.1",

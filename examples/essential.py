@@ -9,10 +9,11 @@ class Process(Pipeline):
     extract_with = pd.read_csv
 
 
-if __name__ == "__main__":
-    p = Process()
-    p.run()
+p = Process()
+p.run()
 
+
+if __name__ == "__main__":
     for iteration in results.all:
         for sample in iteration.samples:
             print(sample.data.raw.head())
