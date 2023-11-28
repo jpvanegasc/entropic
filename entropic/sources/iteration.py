@@ -1,6 +1,7 @@
+from pathlib import Path
 from typing import ClassVar, TypeAlias
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 from entropic.db import default_database
 
@@ -12,11 +13,17 @@ class Iteration(BaseModel):
     sample: ClassVar[TypeAlias] = Sample
 
     samples: list[sample] = Field(default_factory=list)
-    source_path: str
+    source_path: Path
+
+    @field_serializer("source_path")
+    def serialize_source_path(self, source_path: Path):
+        return str(source_path)
 
     @classmethod
     def get_or_create(cls, **kwargs):
         # TODO: this should be done automatically by the database
+        if path := kwargs.get("source_path"):
+            kwargs["source_path"] = str(path)
         return cls(**cls.database.get_or_create(**kwargs))
 
     def save(self):
