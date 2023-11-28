@@ -70,12 +70,12 @@ class Pipeline(metaclass=PipelineMeta):
 
     def extract(self, file_path) -> Sample:
         data_source_data = self.extract_with(file_path)
-        return Sample(data=DataSource(file_path=str(file_path), raw=data_source_data))
+        return Sample(data=DataSource(file_path=file_path, raw=data_source_data))
 
     @final
     def extract_all_source_paths(self):
         for source_path in self.get_source_paths():
-            instance = self.get_iteration().get_or_create(source_path=str(source_path))
+            instance = self.get_iteration().get_or_create(source_path=source_path)
             for file_path in self.get_files_from_path(source_path):
                 sample = self.extract(file_path)
                 instance.upsert_sample(sample=sample)
