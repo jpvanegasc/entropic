@@ -5,7 +5,7 @@ from entropic import results
 
 
 class Process(Pipeline):
-    source_path = "../tests/mocks/"
+    source_paths = ["../tests/mocks/"]
     extract_with = pd.read_csv
 
 

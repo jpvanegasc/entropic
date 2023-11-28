@@ -1,7 +1,6 @@
 import zlib
 import base64
 import io
-from pathlib import Path
 
 import pandas as pd
 from pydantic import (
@@ -17,15 +16,19 @@ SUPPORTED_FILETYPES = [
 
 
 class DataSource(BaseModel):
-    file_path: str | Path
+    file_path: str
     raw: str | pd.DataFrame
-    filetype: str = "csv"
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @field_serializer("raw")
     def serialize_raw(self, raw: pd.DataFrame):
         return self._dump_data_frame(raw)
+
+    def __eq__(self, other):
+        if not isinstance(other, DataSource):
+            return False
+        return self.file_path == other.file_path
 
     @field_validator("raw")
     @classmethod

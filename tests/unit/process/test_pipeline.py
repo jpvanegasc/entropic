@@ -12,7 +12,7 @@ def test_required_definitions():
     with pytest.raises(exceptions.PipelineSetupError) as error:
 
         class TestNoExtract(Pipeline):
-            source_path = "test/path"
+            source_paths = ["test/path"]
 
     assert str(error.value) == "either 'extract_with' or 'extract' must be defined"
 
@@ -21,19 +21,22 @@ def test_required_definitions():
         class TestNoSource(Pipeline):
             extract_with = lambda x: x  # noqa: E731
 
-    assert str(error.value) == "either 'source_path' or 'filepaths' must be defined"
+    assert (
+        str(error.value)
+        == "either 'source_paths' or 'get_source_paths' must be defined"
+    )
 
     with pytest.warns() as warnings:
 
         class TestSourceAndFilePaths(Pipeline):
-            source_path = "test/path"
+            source_paths = ["test/path"]
             extract_with = lambda x: x  # noqa: E731
 
-            def filepaths(self):
+            def get_source_paths(self):
                 return []
 
         class Process(Pipeline):
-            source_path = "test/path"
+            source_paths = ["test/path"]
             extract_with = lambda x: x  # noqa: E731
 
             def extract(self):
@@ -42,12 +45,32 @@ def test_required_definitions():
     assert len(warnings) == 2
     assert (
         str(warnings[0].message)
-        == "both 'source_path' and 'filepaths' defined, ignoring 'source_path'"
+        == "both 'source_paths' and 'get_source_paths' defined, ignoring 'source_paths'"
     )
     assert (
         str(warnings[1].message)
         == "both 'extract_with' and 'extract' are defined, ignoring 'extract_with'"
     )
+
+    with pytest.raises(TypeError) as error:
+
+        class BadSourcePaths(Pipeline):
+            source_paths = "not-a-list"
+            extract_with = lambda x: x  # noqa: E731
+
+        BadSourcePaths()
+
+    assert str(error.value) == "'source_paths' must be a list of path-like objects"
+
+    with pytest.raises(TypeError) as error:
+
+        class BadSourcePaths(Pipeline):
+            source_paths = [1, 2, 3]
+            extract_with = lambda x: x  # noqa: E731
+
+        BadSourcePaths()
+
+    assert str(error.value) == "'source_paths' must be a list of path-like objects"
 
 
 def test_default_functions():
@@ -55,19 +78,15 @@ def test_default_functions():
         return filename
 
     class TestDefaultExtract(Pipeline):
-        source_path = "test/path"
+        source_paths = ["test/path"]
         extract_with = my_extract_function
 
     assert TestDefaultExtract.extract_with == my_extract_function
-    assert TestDefaultExtract.filepaths is not None
 
     class TestCustomFilepaths(Pipeline):
         extract_with = my_extract_function
 
-        def filepaths(self):
+        def get_source_paths(self):
             return ["file"]
 
-    assert (
-        TestCustomFilepaths.source_path
-        == "<test_default_functions.<locals>.TestCustomFilepaths.filepaths>"
-    )
+    assert TestCustomFilepaths.source_paths == []

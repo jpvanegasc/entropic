@@ -43,7 +43,6 @@ class Handler(BaseHandler):
         return self.database.insert(document)
 
     def get_or_create(self, **kwargs):
-        item = self.get(**kwargs)
         if not (item := self.get(**kwargs)):
             item = kwargs
             self.insert_one(item)
