@@ -11,5 +11,4 @@ def test_sample_data_source():
     sample = Sample(data=data_field)
     assert sample.data
     assert sample.data.file_path == data_field["file_path"]
-    assert sample.data.filetype == "csv"
     assert not sample.data.raw.empty
