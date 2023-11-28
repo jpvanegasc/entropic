@@ -29,13 +29,13 @@ class Iteration(BaseModel):
     def save(self):
         return self.database.upsert(
             self.model_dump(),
-            key={"key": "source_path", "value": self.source_path},
+            key={"key": "source_path", "value": str(self.source_path)},
         )
 
     def upsert_sample(self, sample):
-        try:
-            if index := self.samples.index(sample):
-                self.samples[index] = sample
-        except ValueError:
+        if sample in self.samples:
+            index = self.samples.index(sample)
+            self.samples[index] = sample
+        else:
             self.samples.append(sample)
         return sample

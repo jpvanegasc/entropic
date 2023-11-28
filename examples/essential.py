@@ -15,5 +15,6 @@ p.run()
 
 if __name__ == "__main__":
     for iteration in results.all:
+        print(iteration.source_path)
         for sample in iteration.samples:
             print(sample.data.raw.head())
