@@ -1,3 +1,3 @@
-from .results import Results
+from .results_api import Results
 
 results = Results()
