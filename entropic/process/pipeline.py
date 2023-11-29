@@ -1,12 +1,14 @@
 import os
 import warnings
-from typing import final, Callable
+from typing import final, Callable, TypeVar
 from pathlib import Path
 
 from entropic.sources import Iteration, Sample
 from entropic.sources.fields import DataSource
 
 from entropic.process.exceptions import PipelineSetupError
+
+IterationType = TypeVar("IterationType", bound=Iteration)
 
 
 class PipelineMeta(type):
@@ -68,21 +70,46 @@ class Pipeline(metaclass=PipelineMeta):
     def get_files_from_path(self, path):
         return [Path(path, file) for file in os.listdir(path)]
 
-    def extract(self, file_path) -> Sample:
+    def extract(self, file_path):
         data_source_data = self.extract_with(file_path)
         return Sample(data=DataSource(file_path=file_path, raw=data_source_data))
 
+    def transform(self, iteration):
+        return iteration
+
+    def load(self, iteration):
+        return iteration.save()
+
     @final
-    def extract_all_source_paths(self):
+    def extract_all_iterations(self) -> list[IterationType]:
+        iterations: list[IterationType] = []
         for source_path in self.get_source_paths():
             instance = self.get_iteration().get_or_create(source_path=source_path)
             for file_path in self.get_files_from_path(source_path):
                 sample = self.extract(file_path)
                 instance.upsert_sample(sample=sample)
-            instance.save()
+            iterations.append(instance)
+        return iterations
+
+    @final
+    def transform_all_iterations(
+        self, iterations: list[IterationType]
+    ) -> list[IterationType]:
+        for iteration in iterations:
+            iteration = self.transform(iteration)
+        return iterations
+
+    @final
+    def load_all_iterations(self, iterations: list[IterationType]) -> list:
+        saved = []
+        for iteration in iterations:
+            result = self.load(iteration)
+            saved.append(result)
+        return saved
 
     @final
     def run(self):
-        self.extract_all_source_paths()
-        # TODO: add load methods
-        return
+        iterations = self.extract_all_iterations()
+        iterations = self.transform_all_iterations(iterations)
+        results = self.load_all_iterations(iterations)
+        return results
