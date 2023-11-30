@@ -7,7 +7,7 @@ from tinydb.queries import QueryInstance
 from entropic.db import TinyDBHandler
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def database():
     DB_PATH = ".entropic-db-test"
     yield TinyDBHandler(path=DB_PATH)

@@ -3,7 +3,7 @@ import warnings
 from typing import final, Callable, TypeVar
 from pathlib import Path
 
-from entropic.sources import Iteration, Sample
+from entropic.sources import Iteration
 from entropic.sources.fields import DataSource
 
 from entropic.process.exceptions import PipelineSetupError
@@ -67,12 +67,18 @@ class Pipeline(metaclass=PipelineMeta):
     def get_iteration(self):
         return self.iteration
 
+    def get_sample(self):
+        return self.iteration.sample
+
     def get_files_from_path(self, path):
         return [Path(path, file) for file in os.listdir(path)]
 
     def extract(self, file_path):
         data_source_data = self.extract_with(file_path)
-        return Sample(data=DataSource(file_path=file_path, raw=data_source_data))
+        sample = self.get_sample()(
+            data=DataSource(file_path=file_path, raw=data_source_data)
+        )
+        return sample
 
     def transform(self, iteration):
         return iteration
