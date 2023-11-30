@@ -7,13 +7,13 @@ class Results:
     database = default_database()
     iteration = Iteration
 
-    def _load(self, document_list: Sequence[dict]) -> Sequence[Iteration]:
+    def _load(self, document_list: Sequence[dict]):
         return [
             self.get_iteration().model_validate(document) for document in document_list
         ]
 
     @property
-    def all(self) -> Sequence[Iteration]:
+    def all(self):
         return self._load(self.database.all())
 
     def set_iteration(self, iteration):
