@@ -28,10 +28,10 @@ def database():
 @pytest.fixture(scope="module")
 def run_essential_pipeline(database):
     class KinematicSample(Sample):
-        speed: float = 0
+        speed: float = 0  # type: ignore
 
     class KinematicExperiment(Iteration):
-        average_speed: float = 0
+        average_speed: float = 0  # type: ignore
         sample = KinematicSample
 
     class Process(Pipeline):
