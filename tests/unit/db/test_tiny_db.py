@@ -9,7 +9,7 @@ from entropic.db import TinyDBHandler
 
 @pytest.fixture
 def database():
-    DB_PATH = ".entropic-db-2"
+    DB_PATH = ".entropic-db-test"
     yield TinyDBHandler(path=DB_PATH)
     try:
         os.remove(DB_PATH)
