@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import ClassVar, TypeAlias
 
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import BaseModel, Field, field_serializer, field_validator
 
 from entropic.db import default_database
 
@@ -18,6 +18,15 @@ class Iteration(BaseModel):
     @field_serializer("source_path")
     def serialize_source_path(self, source_path: Path):
         return str(source_path)
+
+    @field_validator("samples", mode="before")
+    @classmethod
+    def validate_samples(cls, value: list):
+        return [cls.sample.model_validate(sample) for sample in value]
+
+    @field_serializer("samples")
+    def serialize_samples(self, samples):
+        return [sample.model_dump() for sample in samples]
 
     @classmethod
     def get_or_create(cls, **kwargs):
