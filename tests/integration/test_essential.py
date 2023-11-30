@@ -1,13 +1,32 @@
+import os
+from unittest.mock import patch
+
 import pytest
 import pandas as pd
 
 from entropic import results
 from entropic.process import Pipeline
 from entropic.sources import Iteration
+from entropic.db import TinyDBHandler
 
 
 @pytest.fixture
-def run_essential_pipeline():
+def database():
+    DB_PATH = ".entropic-essential-test"
+    db = TinyDBHandler(path=DB_PATH)
+    patch("entropic.results.database", db).start()
+    patch("entropic.sources.Iteration.database", db).start()
+
+    yield db
+
+    try:
+        os.remove(DB_PATH)
+    except FileNotFoundError:
+        pass
+
+
+@pytest.fixture
+def run_essential_pipeline(database):
     class Process(Pipeline):
         source_paths = ["tests/mocks/"]
         extract_with = pd.read_csv
