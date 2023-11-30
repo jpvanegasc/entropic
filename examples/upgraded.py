@@ -23,7 +23,7 @@ class Process(Pipeline):
         for sample in iteration.samples:
             sample.speed = (sample.data.raw["x"] / sample.data.raw["t"]).mean()
             average += sample.speed
-        iteration.average_speed = average
+        iteration.average_speed = average / len(iteration.samples)
 
 
 p = Process()
