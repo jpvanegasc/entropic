@@ -2,6 +2,7 @@ import zlib
 import base64
 import io
 from pathlib import Path
+from typing import Union
 
 import pandas as pd
 from pydantic import (
@@ -14,7 +15,7 @@ from pydantic import (
 
 class DataSource(BaseModel):
     file_path: Path
-    raw: str | pd.DataFrame
+    raw: Union[str, pd.DataFrame]
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -33,7 +34,7 @@ class DataSource(BaseModel):
 
     @field_validator("raw")
     @classmethod
-    def validate_raw(cls, value: str | pd.DataFrame) -> pd.DataFrame:
+    def validate_raw(cls, value: Union[str, pd.DataFrame]) -> pd.DataFrame:
         if isinstance(value, pd.DataFrame):
             return value
         try:

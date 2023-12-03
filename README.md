@@ -4,7 +4,7 @@
 Entropic is a data pipeline framework designed to provide scientists with a simple and efficient way to access data from their experiments. This documentation will guide you through the installation, usage, and customization of the Entropic package.
 
 ## Requirements
-Entropic needs Python 3.8+, and relies mostly on:
+Entropic needs Python 3.9+, and relies mostly on:
 * [Pydantic](https://docs.pydantic.dev/latest/) for data validation.
 * [Pandas](https://pandas.pydata.org/) for data analysis.
 
