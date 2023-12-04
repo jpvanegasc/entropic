@@ -1,6 +1,6 @@
 import os
 import warnings
-from typing import final, Callable, TypeVar
+from typing import final, Callable, TypeVar, Union
 from pathlib import Path
 
 from entropic.sources import Iteration
@@ -45,7 +45,7 @@ class PipelineMeta(type):
 
 class Pipeline(metaclass=PipelineMeta):
     iteration = Iteration
-    source_paths: list[Path | str] = []
+    source_paths: list[Union[Path, str]] = []
     extract_with: Callable
 
     def __init__(self):
