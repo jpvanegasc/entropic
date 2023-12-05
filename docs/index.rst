@@ -18,11 +18,3 @@ Entropic needs Python 3.9+, and relies mostly on:
 
    Examples
 
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
