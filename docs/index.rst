@@ -17,5 +17,5 @@ Entropic needs Python 3.9+, and relies mostly on:
    :caption: Contents:
 
    Examples
-   Reference
+   Reference/index
 
