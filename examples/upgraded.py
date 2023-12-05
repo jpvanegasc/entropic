@@ -20,10 +20,14 @@ class Process(Pipeline):
     source_paths = ["../tests/mocks"]
     iteration = KinematicExperiment
 
-    def extract(self, file_path):
-        raw = pd.read_csv(file_path)
-        data_source = DataSource(file_path=file_path, raw=raw)
-        return self.get_sample()(data=data_source, points_in_data=raw.shape[0])
+    def extract(self, source_path):
+        iteration = self.get_iteration_by_path(source_path)
+        for file_path in self.get_files_from_path(source_path):
+            raw = pd.read_csv(file_path)
+            data_source = DataSource(file_path=file_path, raw=raw)
+            sample = self.get_sample()(data=data_source, points_in_data=raw.shape[0])
+            iteration.upsert_sample(sample)
+        return iteration
 
     def transform(self, iteration):
         average = 0

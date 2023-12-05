@@ -30,7 +30,7 @@ def database():
 def run_essential_pipeline(database):
     class KinematicSample(Sample):
         speed: float = 0  # type: ignore
-        points_in_data: int = 0
+        points_in_data: int = 0  # type: ignore
 
     class KinematicExperiment(Iteration):
         average_speed: float = 0  # type: ignore
@@ -40,10 +40,16 @@ def run_essential_pipeline(database):
         source_paths = ["tests/mocks"]
         iteration = KinematicExperiment
 
-        def extract(self, file_path):
-            raw = pd.read_csv(file_path)
-            data_source = DataSource(file_path=file_path, raw=raw)
-            return self.get_sample()(data=data_source, points_in_data=raw.shape[0])
+        def extract(self, source_path):
+            iteration = self.get_iteration_by_path(source_path)
+            for file_path in self.get_files_from_path(source_path):
+                raw = pd.read_csv(file_path)
+                data_source = DataSource(file_path=file_path, raw=raw)
+                sample = self.get_sample()(
+                    data=data_source, points_in_data=raw.shape[0]
+                )
+                iteration.upsert_sample(sample)
+            return iteration
 
         def transform(self, iteration):
             average = 0
