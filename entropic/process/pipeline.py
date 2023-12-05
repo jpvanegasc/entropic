@@ -67,18 +67,24 @@ class Pipeline(metaclass=PipelineMeta):
     def get_iteration(self):
         return self.iteration
 
+    def get_iteration_by_path(self, source_path):
+        return self.get_iteration().get_or_create(source_path=source_path)
+
     def get_sample(self):
         return self.iteration.sample
 
     def get_files_from_path(self, path):
         return [Path(path, file) for file in os.listdir(path)]
 
-    def extract(self, file_path):
-        data_source_data = self.extract_with(file_path)
-        sample = self.get_sample()(
-            data=DataSource(file_path=file_path, raw=data_source_data)
-        )
-        return sample
+    def extract(self, source_path):
+        iteration = self.get_iteration_by_path(source_path)
+        for file_path in self.get_files_from_path(source_path):
+            data_source_data = self.extract_with(file_path)
+            sample = self.get_sample()(
+                data=DataSource(file_path=file_path, raw=data_source_data)
+            )
+            iteration.upsert_sample(sample)
+        return iteration
 
     def transform(self, iteration):
         return iteration
@@ -90,11 +96,8 @@ class Pipeline(metaclass=PipelineMeta):
     def extract_all_iterations(self) -> list[IterationType]:
         iterations: list[IterationType] = []
         for source_path in self.get_source_paths():
-            instance = self.get_iteration().get_or_create(source_path=source_path)
-            for file_path in self.get_files_from_path(source_path):
-                sample = self.extract(file_path)
-                instance.upsert_sample(sample=sample)
-            iterations.append(instance)
+            iteration: IterationType = self.extract(source_path)
+            iterations.append(iteration)
         return iterations
 
     @final

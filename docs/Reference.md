@@ -28,20 +28,23 @@ The `Pipeline` class is a base class designed to facilitate the creation of data
 * `get_iteration(self) -> Type[IterationType]`
     - Returns the iteration type associated with the pipeline.
 
+* `get_iteration_by_path(self, source_path: Union[Path, str]) -> Optional[IterationType]`
+    - Wrapper over `Iteration.get_or_create(source_path=source_path)`
+
 * `get_sample(self) -> Any`
     - Returns the sample associated with the iteration.
 
 * `get_files_from_path(self, path: Union[Path, str]) -> List[Path]`
     - Retrieves a list of `Path` objects representing files in the specified path.
 
-* `extract(self, file_path: Union[Path, str]) -> Any`
-    - Extracts data from the specified file using the defined `extract_with` method and returns a sample.
+* `extract(self, file_path: Union[Path, str]) -> IterationType`
+    - Extracts data from the specified file using the defined `extract_with` method and returns an `Iteration` object.
 
 * `transform(self, iteration: IterationType) -> IterationType`
     - Transforms the given iteration and returns the transformed iteration.
 
 * `load(self, iteration: IterationType) -> Any`
-    - Loads the specified iteration, typically by saving it.
+    - Loads the specified iteration by saving it.
 
 * `extract_all_iterations(self) -> List[IterationType]`
     - Extracts data from all specified source paths and returns a list of iterations.
@@ -50,7 +53,7 @@ The `Pipeline` class is a base class designed to facilitate the creation of data
     - Transforms a list of iterations and returns the transformed list.
 
 * `load_all_iterations(self, iterations: List[IterationType]) -> List[Any]`
-    - Loads a list of iterations, typically by saving them, and returns the list of results.
+    - Loads a list of iterations by saving them, and returns the list of results.
 
 * `run(self) -> List[Any]`
     - Executes the entire pipeline, including extraction, transformation, and loading, and returns the final results.
