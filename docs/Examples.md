@@ -112,6 +112,7 @@ A few changes have been done from the previous example:
 1. Custom iteration and sample classes were created:
     ```python
     class KinematicSample(BaseSample):
+        data: DataSource
         speed: float = 0
         points_in_data: int = 0
 

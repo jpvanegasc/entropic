@@ -29,6 +29,7 @@ def database():
 @pytest.fixture(scope="module")
 def run_essential_pipeline(database):
     class KinematicSample(BaseSample):
+        data: DataSource  # type: ignore
         speed: float = 0  # type: ignore
         points_in_data: int = 0  # type: ignore
 
