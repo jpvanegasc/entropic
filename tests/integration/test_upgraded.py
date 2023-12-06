@@ -6,7 +6,7 @@ import pandas as pd
 
 from entropic.results_api import Results
 from entropic.process import Pipeline
-from entropic.sources import Iteration, Sample
+from entropic.sources import Iteration, BaseSample
 from entropic.db import TinyDBHandler
 from entropic.sources.fields import DataSource
 
@@ -28,7 +28,8 @@ def database():
 
 @pytest.fixture(scope="module")
 def run_essential_pipeline(database):
-    class KinematicSample(Sample):
+    class KinematicSample(BaseSample):
+        data: DataSource  # type: ignore
         speed: float = 0  # type: ignore
         points_in_data: int = 0  # type: ignore
 
