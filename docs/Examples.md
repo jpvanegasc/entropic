@@ -54,12 +54,13 @@ A more realistic example will involve custom iterations and samples, which need 
 import pandas as pd
 
 from entropic import results
-from entropic.sources import Sample, Iteration
+from entropic.sources import BaseSample, Iteration
 from entropic.process import Pipeline
 from entropic.sources.fields import DataSource
 
 
-class KinematicSample(Sample):
+class KinematicSample(BaseSample):
+    data: DataSource
     speed: float = 0
     points_in_data: int = 0
 
@@ -108,9 +109,9 @@ if __name__ == "__main__":
 
 A few changes have been done from the previous example:
 
-1. Custom `Iteration` and `Sample` classes were created:
+1. Custom iteration and sample classes were created:
     ```python
-    class KinematicSample(Sample):
+    class KinematicSample(BaseSample):
         speed: float = 0
         points_in_data: int = 0
 

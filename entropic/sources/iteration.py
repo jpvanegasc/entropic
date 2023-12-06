@@ -21,7 +21,7 @@ class Iteration(BaseModel, Generic[SampleType]):
         - The database used for storage.
 
     - **sample**: ClassVar
-        - The sample class associated with the iteration. Defaults to `Sample`.
+        - The sample class associated with the iteration. Defaults to `DefaultSample`.
 
     - **samples**: List[SampleType]
         - A list of samples associated with the iteration. Initialized as an empty list.

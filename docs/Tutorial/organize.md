@@ -4,11 +4,11 @@ This step is not necessary, as you can customize a your pipeline `extract` metho
 
 For this tutorial we'll be building a data pipeline for a kinematic experiment involving data for position, velocity and time.
 
-## Understanding `Iteration` and `Sample`
-Entropic's `Iteration` and `Sample` are deeply connected with an experiment. Broadly speaking they refer to:
+## Understanding iterations and samples
+Entropic's iterations and samples are deeply connected with an experiment. Broadly speaking they refer to:
 
-* An `Iteration` represents a fixed set of initial conditions for which you make at least one run.
-* Each of this runs would represent a `Sample`, which have at least one measurement.
+* An iteration represents a fixed set of initial conditions for which you make at least one run.
+* Each of this runs would represent a sample, which have at least one measurement.
 
 In our case, lets say we have a incline plane experiment in which a ball is dropped from the top, and position in the $x$ and $y$ axis. Three sets of initial conditions were recorded: with the plane at $30^o$, $45^o$ and at $60^o$. For each initial condition two measurements were done, one for the $x$ axis and one for the $y$ axis, and each measurement was repeated three times. This would be thought of as three iterations, each with three samples (one for each repetition), and each repetition having two data sources, one for the $x$ axis and one for the $y$ axis. The ideal file structure would the be:
 ```
@@ -44,3 +44,5 @@ results/
         |-- x_axis_data.csv
         `-- y_axis_data.csv
 ```
+
+__Important:__ Entropic has one implementation for the iteration, `Iteration`, but two implementations for a sample: `BaseSample` and `DefaultSample`. By default, `Iteration` will use `DefaultSample` which only contains one data source. However, for most purposes you might need to create a custom sample with multiple data sources and custom fields, in which case you should always inherit from `BaseSample`.
