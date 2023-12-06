@@ -18,4 +18,5 @@ Entropic needs Python 3.9+, and relies mostly on:
 
    Examples
    Reference/index
+   Tutorial/index
 
