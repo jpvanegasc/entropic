@@ -1,12 +1,13 @@
 import pandas as pd
 
 from entropic import results
-from entropic.sources import Sample, Iteration
+from entropic.sources import BaseSample, Iteration
 from entropic.process import Pipeline
 from entropic.sources.fields import DataSource
 
 
-class KinematicSample(Sample):
+class KinematicSample(BaseSample):
+    data: DataSource
     speed: float = 0
     points_in_data: int = 0
 

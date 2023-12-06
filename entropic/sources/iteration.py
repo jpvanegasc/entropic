@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, field_serializer, field_validator
 
 from entropic.db import default_database
 
-from entropic.sources.sample import Sample
+from entropic.sources.sample import DefaultSample
 
 SampleType = TypeVar("SampleType")
 
@@ -28,7 +28,7 @@ class Iteration(BaseModel, Generic[SampleType]):
     """
 
     database: ClassVar = default_database()
-    sample: ClassVar = Sample
+    sample: ClassVar = DefaultSample
 
     samples: list[SampleType] = Field(default_factory=list)
     source_path: Path

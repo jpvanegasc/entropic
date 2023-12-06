@@ -1,6 +1,6 @@
 import pandas as pd
 
-from entropic.sources import Sample
+from entropic.sources import DefaultSample
 
 
 def test_sample_data_source():
@@ -8,7 +8,7 @@ def test_sample_data_source():
         "file_path": "tests/mocks/kinematic1.csv",
         "raw": pd.read_csv("tests/mocks/kinematic1.csv"),
     }
-    sample = Sample(data=data_field)
+    sample = DefaultSample(data=data_field)
     assert sample.data
     assert str(sample.data.file_path) == data_field["file_path"]
     assert not sample.data.raw.empty
