@@ -1,9 +1,11 @@
 Reference
 =========
-Details on implementation and available methods
+Technical implementations and description of entropic's machinery.
 
 .. toctree::
     :maxdepth: 1
 
+    db
     process
+    results
     sources
