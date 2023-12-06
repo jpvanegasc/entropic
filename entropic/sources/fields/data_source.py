@@ -14,6 +14,12 @@ from pydantic import (
 
 
 class DataSource(BaseModel):
+    """
+    The `DataSource` class represents a data source that can be either a file path or raw data in the form of
+    a Pandas DataFrame. It provides serialization and validation methods for raw data, file paths, and equality
+    comparisons.
+    """
+
     file_path: Path
     raw: Union[str, pd.DataFrame]
 
@@ -44,6 +50,7 @@ class DataSource(BaseModel):
 
     @staticmethod
     def _dump_data_frame(data_frame: pd.DataFrame) -> str:
+        """Private method that compresses and base64-encodes a Pandas DataFrame."""
         data_frame_bytes = data_frame.to_parquet()
         compressed = zlib.compress(data_frame_bytes)
         compressed_b64 = base64.b64encode(compressed)
@@ -52,6 +59,7 @@ class DataSource(BaseModel):
 
     @staticmethod
     def _load_data_frame(compressed: str) -> pd.DataFrame:
+        """Private method that decodes and decompresses a base64-encoded string to retrieve a Pandas DataFrame."""
         compressed_b64_bytes = compressed.encode()
         compressed_b64 = base64.b64decode(compressed_b64_bytes)
         uncompressed = zlib.decompress(compressed_b64)
