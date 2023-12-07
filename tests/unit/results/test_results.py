@@ -62,3 +62,12 @@ def test_operations(database):
 
     item = results.get(source_path="not/a/real/path")
     assert item is None
+
+
+def test_helpers():
+    class DummyIteration:
+        pass
+
+    results = Results()
+    results.set_iteration(DummyIteration)
+    assert results.iteration is DummyIteration

@@ -27,3 +27,16 @@ def test_get_source_fields(mock_data_frame):
         int_field=1,
     )
     assert test._get_data_source_fields() == ["data_field_1", "data_field_2"]
+
+
+def test_equality(mock_data_frame):
+    class TestSample(BaseSample):
+        data: DataSource
+
+    sample = DefaultSample(data=DataSource(file_path="path", raw=mock_data_frame))
+
+    assert sample != "not a sample"
+    assert sample == DefaultSample(
+        data=DataSource(file_path="path", raw=mock_data_frame)
+    )
+    assert sample != TestSample(data=DataSource(file_path="path", raw=mock_data_frame))
