@@ -1,7 +1,9 @@
+from pathlib import Path
+
 import pytest
 
-from entropic.process import Pipeline
-from entropic.process import exceptions
+from entropic.process import Pipeline, exceptions
+from entropic.sources import Iteration, DefaultSample
 
 
 def test_required_definitions():
@@ -90,3 +92,22 @@ def test_default_functions():
             return ["file"]
 
     assert TestCustomFilepaths.source_paths == []
+
+
+def test_helpers():
+    def my_extract_function(filename):
+        return filename
+
+    class TestHelpers(Pipeline):
+        source_paths = ["tests/mocks"]
+        extract_with = my_extract_function
+
+    pipeline = TestHelpers()
+
+    assert pipeline.get_source_paths() == [Path("tests/mocks")]
+    assert pipeline.get_iteration() is Iteration
+    assert pipeline.get_sample() is DefaultSample
+    assert pipeline.get_files_from_path("tests/mocks") == [
+        Path("tests/mocks/kinematic2.csv"),
+        Path("tests/mocks/kinematic1.csv"),
+    ]
