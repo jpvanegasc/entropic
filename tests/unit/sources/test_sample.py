@@ -17,9 +17,9 @@ def test_default_sample_data_source():
 
 def test_get_source_fields(mock_data_frame):
     class TestSample(BaseSample):
-        data_field_1: DataSource
-        data_field_2: DataSource
-        int_field: int
+        data_field_1: DataSource  # type:ignore
+        data_field_2: DataSource  # type:ignore
+        int_field: int  # type:ignore
 
     test = TestSample(
         data_field_1=DataSource(file_path="path", raw=mock_data_frame),
@@ -31,7 +31,7 @@ def test_get_source_fields(mock_data_frame):
 
 def test_equality(mock_data_frame):
     class TestSample(BaseSample):
-        data: DataSource
+        data: DataSource  # type:ignore
 
     sample = DefaultSample(data=DataSource(file_path="path", raw=mock_data_frame))
 
