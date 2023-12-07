@@ -1,7 +1,8 @@
 # Entropic
 > From chaos, information.
 
-Entropic is a data pipeline framework designed to provide scientists with a simple and efficient way to access data from their experiments. This documentation will guide you through the installation, usage, and customization of the Entropic package.
+Entropic is a data pipeline framework designed to provide scientists with a simple and efficient way to access data from their experiments.
+You can find [the full documentation here.](https://entropic.readthedocs.io/en/latest/index.html)
 
 ## Requirements
 Entropic needs Python 3.9+, and relies mostly on:
