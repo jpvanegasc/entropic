@@ -137,3 +137,7 @@ cython_debug/
 
 # Sphinx documentation
 docs/_build/
+
+# Examples
+examples/results/
+examples/*.json
