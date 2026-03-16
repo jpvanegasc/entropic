@@ -155,10 +155,10 @@ The library generates `result_path` for you (timestamp + hash + suffix). You jus
 ## Development
 
 ```bash
-git clone https://github.com/your-org/entropic.git
+git clone https://github.com/jpvanegasc/entropic.git
 cd entropic
-pip install -e ".[dev]"
-pytest tests/ -v
+uv sync --group dev
+uv run pytest tests/ -v
 ```
 
 ## License

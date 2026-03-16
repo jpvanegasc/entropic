@@ -10,7 +10,7 @@ This is v2. The library is published on PyPI as `entropic`.
 
 - **Language**: Python 3.10+
 - **Dependencies**: TinyDB (JSON-file database for metadata indexing)
-- **Build system**: Hatchling
+- **Build system**: uv_build
 - **Testing**: pytest
 - **Linting**: ruff (pyflakes, pycodestyle, isort, bugbear)
 - **Type checking**: mypy (strict mode)
@@ -18,7 +18,7 @@ This is v2. The library is published on PyPI as `entropic`.
 ## Architecture
 
 ```
-entropic/
+src/entropic/
 ├── __init__.py    # Public API: Store, RunRecord
 ├── store.py       # Store class — main entry point (run, retrieve, run_or_retrieve, register, list, delete)
 ├── record.py      # RunRecord frozen dataclass — serialization to/from flat dicts
@@ -67,17 +67,17 @@ User params (`n`, `steps`, `dt`) are flattened alongside reserved fields.
 
 ```bash
 # Install (editable, with dev deps)
-pip install -e ".[dev]"
+uv sync --group dev
 
 # Run tests
-pytest tests/ -v
+uv run pytest tests/ -v
 
 # Lint + format
-ruff format .
-ruff check . --fix
+uv run ruff format .
+uv run ruff check . --fix
 
 # Type check
-mypy entropic/
+uv run mypy src/entropic/
 ```
 
 ## Conventions
@@ -87,7 +87,6 @@ mypy entropic/
 - Type hints everywhere — mypy strict mode is enabled.
 - The `IndexBackend` protocol lives in `index.py` alongside the default `TinyDBIndex`.
 - Test files mirror source modules: `test_store.py`, `test_hashing.py`, `test_record.py`.
-- `run_tests.py` at the repo root is a zero-dependency test runner (no pytest needed) for quick validation.
 
 ## Roadmap / future work
 
