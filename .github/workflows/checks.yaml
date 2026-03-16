@@ -1,34 +1,48 @@
 name: Acceptance
-on: push
+
+on:
+  push:
+    branches-ignore:
+      - main
+
 jobs:
-  check-lint:
-    name: Check Lint
+  pre-commit-check:
+    name: Pre-commit check
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python environment
-      uses: actions/setup-python@v1
-      with:
-        python-version: "3.10"
-    - name: Install requirements
-      run: pip install -r requirements-dev.txt
-    - name: Black
-      run: black --check entropic/ tests/
-    - name: Ruff
-      run: ruff entropic/ tests/
-    - name: Mypy
-      run: mypy entropic/ tests/
+      - uses: actions/checkout@v4
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install the project
+        run: uv sync --locked --all-extras --dev
+
+      - name: Code Autoformat
+        id: format
+        run: uv run pre-commit run --all-files
 
   check-tests:
-    name: Check Tests
+    name: Tests and coverage check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - name: Set up Python environment
-        uses: actions/setup-python@v1
+      - uses: actions/checkout@v4
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
-      - name: Install requirements
-        run: pip install -r requirements-test.txt
-      - name: Tests run
-        run: bin/test --coverage
+          python-version-file: ".python-version"
+
+      - name: Install the project
+        run: uv sync --locked --all-extras --dev
+
+      - name: Run tests
+        run: uv run coverage run -m pytest && uv run coverage report -i --fail-under=80
