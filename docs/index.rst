@@ -1,22 +1,15 @@
-Entropic's Documentation
-====================================
-Entropic is a data pipeline framework designed to provide scientists with a simple and efficient way to access data from their experiments.
+entropic
+========
 
-Install it using pip::
+A simulation-agnostic run cache: maps parameters → result file without caring what's inside.
+
+Install with pip (Python 3.10+, TinyDB auto-installed)::
 
    pip install entropic
-
-Entropic needs Python 3.9+, and relies mostly on:
-
-* `Pydantic <https://docs.pydantic.dev/latest/>`_ for data validation.
-* `Pandas <https://pandas.pydata.org/>`_ for data analysis.
-
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
-   Examples
-   Reference/index
-   Tutorial/index
-
+   quickstart
+   api
