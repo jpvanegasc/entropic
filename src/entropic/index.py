@@ -55,7 +55,7 @@ class TinyDBIndex:
     def find_by_hash(self, params_hash: str) -> RunRecord | None:
         q = Query()
         with self._open() as db:
-            result = db.get(q.params_hash == params_hash)  # type: ignore[attr-defined]
+            result = db.get(q.params_hash == params_hash)
             if result is None:
                 return None
             return RunRecord.from_dict(result)
@@ -86,5 +86,5 @@ class TinyDBIndex:
     def delete_by_hash(self, params_hash: str) -> bool:
         q = Query()
         with self._open() as db:
-            removed = db.remove(q.params_hash == params_hash)  # type: ignore[attr-defined]
+            removed = db.remove(q.params_hash == params_hash)
             return len(removed) > 0
