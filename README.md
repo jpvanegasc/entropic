@@ -1,166 +1,166 @@
-# Entropic
-> From chaos, information.
+# entropic
 
-Entropic is a data pipeline framework designed to provide scientists with a simple and efficient way to access data from their experiments.
-You can find [the full documentation here.](https://entropic.readthedocs.io/en/latest/index.html)
+Simulation-agnostic run cache. Manage, retrieve, and deduplicate simulation results without caring about what your simulation does or how it stores data.
 
-## Requirements
-Entropic needs Python 3.9+, and relies mostly on:
-* [Pydantic](https://docs.pydantic.dev/latest/) for data validation.
-* [Pandas](https://pandas.pydata.org/) for data analysis.
+`entropic` handles the mapping **parameters → result file**. It doesn't touch what's inside your result files — that's your business.
 
-## Installation
-
-You can install Entropic using `pip`:
+## Install
 
 ```bash
 pip install entropic
 ```
 
-## Usage
-### Example
-The most basic data pipeline that can be created with entropic consists of a `Pipeline` subclass which defines the directories containing the experiment results and a function that will be used to read each result file and create a pandas DataFrame from it:
+Requires Python 3.10+ and TinyDB (installed automatically).
+
+## Quickstart
 
 ```python
-import pandas as pd
+from entropic import Store
 
-from entropic.process import Pipeline
-from entropic import results
+store = Store("./results", "./runs.json")
 
+# Define a runner: receives (params, result_path), writes results to result_path
+def my_simulation(params, result_path):
+    import numpy as np
+    data = np.random.randn(params["n"], params["steps"])
+    np.save(result_path, data)
 
-class Process(Pipeline):
-    source_paths = ["experiments/iteration_1", "experiments/iteration_2"]
-    extract_with = pd.read_csv
+# Run or retrieve from cache
+record = store.run_or_retrieve(
+    params={"n": 100, "steps": 5000, "dt": 0.01},
+    runner=my_simulation,
+)
+print(record.result_path)   # ./results/1769854174.763568_a3f8c1d2e4b6f7a8.npy
+print(record.params)         # {"n": 100, "steps": 5000, "dt": 0.01}
+print(record.metadata)       # {"elapsed_seconds": 0.042}
 
-
-p = Process()
-p.run()
-
-
-if __name__ == "__main__":
-    for iteration in results.all:
-        for sample in iteration.samples:
-            print(sample.data.raw.head())
+# Second call with same params → instant cache hit, no re-run
+record = store.run_or_retrieve(
+    params={"n": 100, "steps": 5000, "dt": 0.01},
+    runner=my_simulation,
+)
 ```
 
+## Core API
 
-The main parts from this example are:
-1. Define your data processing class by inheriting from Pipeline:
-    ```python
-    class Process(Pipeline):
-        source_paths = ["experiments/iteration_1", "experiments/iteration_2"]
-        extract_with = pd.read_csv
-    ```
-    The `source_paths` variable points to folders which contain the results for an iteration. Within entropic, an iteration can be thought as a set of initial conditions for which you performed an experiment and took various samples with various results. `extract_with` defines a function that will read through all of the sample files and create a DataFrame from it. In this example I'm using `pandas.read_csv`, but it can be any function you want -you can even custom define it and pass it to `extract_with`.
-2. Instantiate and run the pipeline:
-    ```python
-    p = Process()
-    p.run()
-    ```
-3. Access your results using the `results` API:
-    ```python
-    if __name__ == "__main__":
-        for iteration in results.all:
-            for sample in iteration.samples:
-                print(sample.data.raw.head())
-    ```
-In this example the accessing of results happens on the same file in which you run the pipeline. However, for performance reasons you might want to consider splitting the processing and the analysis on two different files. In this case you only need to run the processing part once, and your data will be loaded to a JSON-based database.
-
-### Example upgrade
-A more realistic example will involve custom iterations and samples, which need custom logic for extracting, transforming or loading them into the database.
+### `Store`
 
 ```python
-import pandas as pd
-
-from entropic import results
-from entropic.sources import BaseSample, Iteration
-from entropic.process import Pipeline
-from entropic.sources.fields import DataSource
-
-
-class KinematicSample(BaseSample):
-    data: DataSource
-    speed: float = 0
-    points_in_data: int = 0
-
-
-class KinematicExperiment(Iteration):
-    average_speed: float = 0
-    sample = KinematicSample
-
-
-class Process(Pipeline):
-    source_paths = ["experiments/initial_condition_1"]
-    iteration = KinematicExperiment
-
-    def extract(self, source_path):
-        iteration = self.get_iteration_by_path(source_path)
-        for file_path in self.get_files_from_path(source_path):
-            raw = pd.read_csv(file_path)
-            data_source = DataSource(file_path=file_path, raw=raw)
-            sample = self.get_sample()(data=data_source, points_in_data=raw.shape[0])
-            iteration.upsert_sample(sample)
-        return iteration
-
-    def transform(self, iteration):
-        average = 0
-        for sample in iteration.samples:
-            sample.speed = (sample.data.raw["x"] / sample.data.raw["t"]).mean()
-            average += sample.speed
-        iteration.average_speed = average / len(iteration.samples)
-
-
-p = Process()
-p.run()
-
-results.set_iteration(KinematicExperiment)
-
-if __name__ == "__main__":
-    for iteration in results.all:
-        print(f"Iteration average speed={iteration.average_speed}")
-        for i, sample in enumerate(iteration.samples):
-            print(f"Sample {i+1}")
-            print(f"speed={sample.speed}")
-            print(f"rows={sample.points_in_data}")
-            print()
+store = Store(
+    results_dir="./results",     # where result files live
+    db_path="./entropic.json",   # TinyDB metadata index
+    file_suffix=".h5",           # extension for auto-generated filenames
+    index=None,                  # custom IndexBackend (default: TinyDB)
+)
 ```
 
+#### `store.run_or_retrieve(params, runner, **metadata) → RunRecord`
 
-A few changes have been done from the previous example:
+The main workhorse. Returns a cached result if one exists for the given params, otherwise calls `runner(params, result_path)` and caches the result.
 
-1. Custom iteration and sample classes were created:
-    ```python
-    class KinematicSample(BaseSample):
-        data: DataSource
-        speed: float = 0
-        points_in_data: int = 0
+```python
+record = store.run_or_retrieve(
+    params={"n": 50, "method": "rk4"},
+    runner=my_sim,
+    git_sha="abc123",  # optional metadata
+)
+```
 
+#### `store.run(params, runner, **metadata) → RunRecord`
 
-    class KinematicExperiment(Iteration):
-        average_speed: float = 0
-        sample = KinematicSample
-    ```
-2. Instead of defining an `extract_with` function, the extract function is defined instead. Also, calculations can be performed on a given iteration using the `transform` function:
-    ```python
-    class Process(Pipeline):
-        source_paths = ["experiments/initial_condition_1"]
-        iteration = KinematicExperiment
+Always runs the simulation, even if a cached result exists. Useful for re-running with the same parameters (e.g., stochastic simulations).
 
-        def extract(self, file_path):
-            raw = pd.read_csv(file_path)
-            data_source = DataSource(file_path=file_path, raw=raw)
-            return self.get_sample()(data=data_source, points_in_data=raw.shape[0])
+#### `store.retrieve(params) → RunRecord | None`
 
-        def transform(self, iteration):
-            average = 0
-            for sample in iteration.samples:
-                sample.speed = (sample.data.raw["x"] / sample.data.raw["t"]).mean()
-                average += sample.speed
-            iteration.average_speed = average / len(iteration.samples)
-    ```
-    Note that `KinematicExperiment` is being defined as the iteration for the `Process` class. You can access the `iteration` and `sample` using `self.get_iteration()` and `self.get_sample()`. Don't try to access `self.iteration` and `self.sample`, as it might break!
-3. In order to properly display results, the custom iteration has to be "added" to the results API:
-    ```python
-    results.set_iteration(KinematicExperiment)
-    ```
+Look up a cached run by exact parameter match. Returns `None` on cache miss.
 
+#### `store.register(params, result_path, **metadata) → RunRecord`
+
+Manually register an externally-produced result file. Use this when you run simulations outside the library and want to index them for later retrieval.
+
+```python
+store.register(
+    params={"n": 50, "method": "euler"},
+    result_path="./results/my_external_run.h5",
+)
+```
+
+#### `store.list(where=None) → list[RunRecord]`
+
+List all runs, optionally filtered by partial parameter match. This is how you query by a subset of parameters — e.g., all runs with a specific grid size regardless of other settings.
+
+```python
+all_runs = store.list()
+rk4_runs = store.list(where={"method": "rk4"})
+specific = store.list(where={"method": "rk4", "n": 50})
+```
+
+#### `store.delete(params, remove_file=False) → bool`
+
+Delete a run record by exact parameter match. Optionally removes the result file from disk.
+
+### `RunRecord`
+
+Frozen dataclass returned by all `Store` methods.
+
+```python
+record.params        # dict — the simulation parameters
+record.result_path   # Path — path to the result file
+record.params_hash   # str — 16-char hex hash of params
+record.created_at    # str — ISO 8601 timestamp
+record.metadata      # dict — user-defined extras (elapsed_seconds auto-added)
+```
+
+## How it works
+
+Parameters are stored as **flat fields** in a TinyDB JSON file, plus a deterministic SHA-256 hash for fast exact lookups. This gives you both:
+
+- **O(1) exact match** via `retrieve()` / `run_or_retrieve()` (hash lookup)
+- **Flexible partial queries** via `list(where=...)` (field-by-field TinyDB search)
+
+Parameter hashing normalizes values before hashing: dict keys are sorted, floats are rounded to 12 digits (avoiding IEEE 754 noise), enums are converted to their `.value`, and everything is serialized to canonical JSON.
+
+## Custom index backends
+
+The default TinyDB backend works well for local workflows. For larger-scale use (remote databases, shared teams), implement the `IndexBackend` protocol:
+
+```python
+from entropic.index import IndexBackend
+from entropic.record import RunRecord
+
+class PostgresIndex:
+    def find_by_hash(self, params_hash: str) -> RunRecord | None: ...
+    def find_by_params(self, params: dict) -> list[RunRecord]: ...
+    def insert(self, record: RunRecord) -> None: ...
+    def all(self) -> list[RunRecord]: ...
+    def delete_by_hash(self, params_hash: str) -> bool: ...
+
+store = Store("./results", index=PostgresIndex(conn_string="..."))
+```
+
+## Runner contract
+
+A runner is any callable with this signature:
+
+```python
+def runner(params: dict[str, Any], result_path: Path) -> None:
+    # 1. Use `params` to configure your simulation
+    # 2. Write results to `result_path` (any format you want)
+    # 3. Return nothing — entropic handles the rest
+    ...
+```
+
+The library generates `result_path` for you (timestamp + hash + suffix). You just write to it.
+
+## Development
+
+```bash
+git clone https://github.com/your-org/entropic.git
+cd entropic
+pip install -e ".[dev]"
+pytest tests/ -v
+```
+
+## License
+
+MIT
