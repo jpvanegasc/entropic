@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime, timezone
 from pathlib import Path
 from time import time
@@ -141,6 +142,26 @@ class Store:
         if existing is not None:
             return existing
         return self.run(params, runner, **metadata)
+
+    def sweep(
+        self,
+        params_iter: Iterable[dict[str, Any]],
+        runner: Runner,
+        **metadata: Any,
+    ) -> list[RunRecord]:
+        """Run or retrieve results for each parameter set in the iterable.
+
+        Args:
+            params_iter: Iterable of parameter dicts to sweep over.
+            runner: Callable(params, result_path) that executes the simulation.
+            **metadata: Optional metadata passed to each run.
+
+        Returns:
+            List of RunRecords in the same order as the input.
+        """
+        return [
+            self.run_or_retrieve(params, runner, **metadata) for params in params_iter
+        ]
 
     def register(
         self,

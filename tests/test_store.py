@@ -71,6 +71,40 @@ class TestRunOrRetrieve:
         assert r1.result_path != r2.result_path
 
 
+class TestSweep:
+    def test_sweep_runs_all(self, tmp_store: Store):
+        params = [{"n": 1}, {"n": 2}, {"n": 3}]
+        records = tmp_store.sweep(params, _dummy_runner)
+        assert len(records) == 3
+        assert all(r.result_path.exists() for r in records)
+
+    def test_sweep_uses_cache(self, tmp_store: Store):
+        call_count = 0
+
+        def counting_runner(params: dict, result_path: Path) -> None:
+            nonlocal call_count
+            call_count += 1
+            result_path.write_text(f"n={params['n']}")
+
+        # Pre-cache one combination
+        tmp_store.run({"n": 2}, counting_runner)
+        assert call_count == 1
+
+        # Sweep includes the cached one
+        records = tmp_store.sweep([{"n": 1}, {"n": 2}, {"n": 3}], counting_runner)
+        assert len(records) == 3
+        # Only n=1 and n=3 should have triggered new runs
+        assert call_count == 3
+
+    def test_sweep_empty(self, tmp_store: Store):
+        assert tmp_store.sweep([], _dummy_runner) == []
+
+    def test_sweep_preserves_order(self, tmp_store: Store):
+        params = [{"n": 30}, {"n": 10}, {"n": 20}]
+        records = tmp_store.sweep(params, _dummy_runner)
+        assert [r.params["n"] for r in records] == [30, 10, 20]
+
+
 class TestRegister:
     def test_register_existing_file(self, tmp_store: Store):
         # Create a file externally
