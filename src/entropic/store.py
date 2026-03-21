@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from time import time
@@ -10,9 +9,8 @@ from typing import Any, Callable
 
 from entropic.hashing import hash_params
 from entropic.index import IndexBackend, TinyDBIndex
+from entropic.logging import logger
 from entropic.record import RunRecord
-
-logger = logging.getLogger(__name__)
 
 # A runner receives (params, result_path) and writes results to result_path.
 Runner = Callable[[dict[str, Any], Path], None]

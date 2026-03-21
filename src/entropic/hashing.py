@@ -1,5 +1,3 @@
-"""Deterministic parameter hashing."""
-
 from __future__ import annotations
 
 import hashlib

@@ -1,5 +1,3 @@
-"""entropic — simulation-agnostic run cache."""
-
 from entropic.record import RunRecord
 from entropic.store import Store
 
