@@ -141,3 +141,6 @@ docs/_build/
 # Examples
 examples/results/
 examples/*.json
+
+# MacOS
+**/.DS_Store
