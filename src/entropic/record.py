@@ -7,6 +7,11 @@ from pathlib import Path
 from typing import Any
 
 
+RESERVED_KEYS: frozenset[str] = frozenset(
+    {"params_hash", "result_path", "created_at", "metadata"}
+)
+
+
 @dataclass(frozen=True)
 class RunRecord:
     """A record of a completed simulation run.
@@ -38,8 +43,7 @@ class RunRecord:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> RunRecord:
         """Reconstruct from a stored dict."""
-        reserved = {"params_hash", "result_path", "created_at", "metadata"}
-        params = {k: v for k, v in data.items() if k not in reserved}
+        params = {k: v for k, v in data.items() if k not in RESERVED_KEYS}
         return cls(
             params=params,
             result_path=Path(data["result_path"]),

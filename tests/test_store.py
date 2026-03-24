@@ -62,3 +62,42 @@ def test_sweep_forwards_metadata(tmp_store: Store) -> None:
 def test_register_missing_file_raises(tmp_store: Store) -> None:
     with pytest.raises(FileNotFoundError):
         tmp_store.register({"n": 42}, Path("/nonexistent.dat"))
+
+
+_RESERVED = ["params_hash", "result_path", "created_at", "metadata"]
+
+
+@pytest.mark.parametrize("key", _RESERVED)
+def test_reserved_key_raises_in_run(tmp_store: Store, key: str) -> None:
+    """run() raises ValueError when a reserved key is in params."""
+
+    def runner(params: dict, result_path: Path) -> None:
+        result_path.write_text("x")
+
+    with pytest.raises(ValueError, match="reserved key"):
+        tmp_store.run({key: "bad"}, runner)
+
+
+@pytest.mark.parametrize("key", _RESERVED)
+def test_reserved_key_raises_in_retrieve(tmp_store: Store, key: str) -> None:
+    """retrieve() raises ValueError when a reserved key is in params."""
+    with pytest.raises(ValueError, match="reserved key"):
+        tmp_store.retrieve({key: "bad"})
+
+
+@pytest.mark.parametrize("key", _RESERVED)
+def test_reserved_key_raises_in_register(
+    tmp_store: Store, key: str, tmp_path: Path
+) -> None:
+    """register() raises ValueError when a reserved key is in params."""
+    f = tmp_path / "f.dat"
+    f.write_text("x")
+    with pytest.raises(ValueError, match="reserved key"):
+        tmp_store.register({key: "bad"}, f)
+
+
+@pytest.mark.parametrize("key", _RESERVED)
+def test_reserved_key_raises_in_delete(tmp_store: Store, key: str) -> None:
+    """delete() raises ValueError when a reserved key is in params."""
+    with pytest.raises(ValueError, match="reserved key"):
+        tmp_store.delete({key: "bad"})

@@ -119,6 +119,8 @@ The following keys are used internally and must not appear in your `params` dict
 - `created_at`
 - `metadata`
 
+Passing any of these as a param key raises `ValueError` with a message listing the conflicting key(s). This applies to all `Store` methods that accept a `params` argument (`run`, `run_or_retrieve`, `retrieve`, `sweep`, `register`, `delete`).
+
 ## `RunRecord`
 
 ```python

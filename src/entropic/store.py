@@ -11,7 +11,7 @@ from typing import Any, Callable
 from entropic.hashing import hash_params
 from entropic.index import IndexBackend, TinyDBIndex
 from entropic.logging import logger
-from entropic.record import RunRecord
+from entropic.record import RESERVED_KEYS, RunRecord
 
 # A runner receives (params, result_path) and writes results to result_path.
 Runner = Callable[[dict[str, Any], Path], None]
@@ -68,6 +68,14 @@ class Store:
         self.file_suffix = file_suffix
         self._index: IndexBackend = index or TinyDBIndex(db_path)
 
+    def _validate_params(self, params: dict[str, Any]) -> None:
+        conflicts = RESERVED_KEYS & params.keys()
+        if conflicts:
+            raise ValueError(
+                f"params contains reserved key(s): {sorted(conflicts)}. "
+                f"Reserved keys are: {sorted(RESERVED_KEYS)}."
+            )
+
     def retrieve(self, params: dict[str, Any]) -> RunRecord | None:
         """Look up a cached run by exact parameter match.
 
@@ -76,7 +84,11 @@ class Store:
 
         Returns:
             RunRecord if found, None otherwise.
+
+        Raises:
+            ValueError: If params contains a reserved key.
         """
+        self._validate_params(params)
         h = hash_params(params)
         record = self._index.find_by_hash(h)
         if record is not None:
@@ -99,7 +111,11 @@ class Store:
 
         Returns:
             RunRecord for the completed run.
+
+        Raises:
+            ValueError: If params contains a reserved key.
         """
+        self._validate_params(params)
         h = hash_params(params)
         result_path = self._generate_result_path(h)
 
@@ -184,7 +200,9 @@ class Store:
 
         Raises:
             FileNotFoundError: If result_path does not exist.
+            ValueError: If params contains a reserved key.
         """
+        self._validate_params(params)
         result_path = Path(result_path)
         if not result_path.exists():
             raise FileNotFoundError(f"Result file not found: {result_path}")
@@ -226,7 +244,11 @@ class Store:
 
         Returns:
             True if a record was found and deleted.
+
+        Raises:
+            ValueError: If params contains a reserved key.
         """
+        self._validate_params(params)
         h = hash_params(params)
         record = self._index.find_by_hash(h)
         success = self._index.delete_by_hash(h)
