@@ -1,16 +1,18 @@
 # entropic
 
-Simulation-agnostic run cache. Manage, retrieve, and deduplicate simulation results without caring about what your simulation does or how it stores data.
-
-`entropic` handles the mapping **parameters → result file**. It doesn't touch what's inside your result files — that's your business.
+Entropic is a minimal, file-based run cache for Python-driven simulations and scripts.
+By hashing your input parameters, it automatically identifies duplicate runs and skips
+unnecessary computation. It is completely agnostic to your simulation engine,
+lightweight by design, and built to manage locally run research workflows without
+getting in your way.
 
 ## Install
 
 ```bash
 pip install entropic
+# or
+uv add entropic
 ```
-
-Requires Python 3.10+ and TinyDB (installed automatically).
 
 ## Quickstart
 
@@ -56,7 +58,8 @@ store = Store(
 
 #### `store.run_or_retrieve(params, runner, **metadata) → RunRecord`
 
-The main workhorse. Returns a cached result if one exists for the given params, otherwise calls `runner(params, result_path)` and caches the result.
+The main workhorse. Returns a cached result if one exists for the given params,
+otherwise calls `runner(params, result_path)` and caches the result.
 
 ```python
 record = store.run_or_retrieve(
@@ -68,7 +71,8 @@ record = store.run_or_retrieve(
 
 #### `store.run(params, runner, **metadata) → RunRecord`
 
-Always runs the simulation, even if a cached result exists. Useful for re-running with the same parameters (e.g., stochastic simulations).
+Always runs the simulation, even if a cached result exists. Useful for re-running with
+the same parameters (e.g., stochastic simulations).
 
 #### `store.retrieve(params) → RunRecord | None`
 
@@ -76,7 +80,8 @@ Look up a cached run by exact parameter match. Returns `None` on cache miss.
 
 #### `store.register(params, result_path, **metadata) → RunRecord`
 
-Manually register an externally-produced result file. Use this when you run simulations outside the library and want to index them for later retrieval.
+Manually register an externally-produced result file. Use this when you run simulations
+outside the library and want to index them for later retrieval.
 
 ```python
 store.register(
@@ -87,7 +92,9 @@ store.register(
 
 #### `store.list(where=None) → list[RunRecord]`
 
-List all runs, optionally filtered by partial parameter match. This is how you query by a subset of parameters — e.g., all runs with a specific grid size regardless of other settings.
+List all runs, optionally filtered by partial parameter match. This is how you query by
+a subset of parameters — e.g., all runs with a specific grid size regardless of other
+settings.
 
 ```python
 all_runs = store.list()
@@ -95,9 +102,22 @@ rk4_runs = store.list(where={"method": "rk4"})
 specific = store.list(where={"method": "rk4", "n": 50})
 ```
 
+#### `store.sweep(params_iter, runner, **metadata) → list[RunRecord]`
+
+Run or retrieve results for each parameter set in an iterable. Reuses cached results
+where possible.
+
+```python
+records = store.sweep(
+    [{"n": 10, "dt": dt} for dt in [0.01, 0.005, 0.001]],
+    runner=my_simulation,
+)
+```
+
 #### `store.delete(params, remove_file=False) → bool`
 
-Delete a run record by exact parameter match. Optionally removes the result file from disk.
+Delete a run record by exact parameter match. Optionally removes the result file from
+disk.
 
 ### `RunRecord`
 
@@ -113,16 +133,20 @@ record.metadata      # dict — user-defined extras (elapsed_seconds auto-added)
 
 ## How it works
 
-Parameters are stored as **flat fields** in a TinyDB JSON file, plus a deterministic SHA-256 hash for fast exact lookups. This gives you both:
+Parameters are stored as **flat fields** in a TinyDB JSON file, plus a deterministic
+SHA-256 hash for fast exact lookups. This gives you both:
 
 - **O(1) exact match** via `retrieve()` / `run_or_retrieve()` (hash lookup)
 - **Flexible partial queries** via `list(where=...)` (field-by-field TinyDB search)
 
-Parameter hashing normalizes values before hashing: dict keys are sorted, floats are rounded to 12 digits (avoiding IEEE 754 noise), enums are converted to their `.value`, and everything is serialized to canonical JSON.
+Parameter hashing normalizes values before hashing: dict keys are sorted, floats are
+rounded to 12 digits (avoiding IEEE 754 noise), enums are converted to their `.value`,
+and everything is serialized to canonical JSON.
 
 ## Custom index backends
 
-The default TinyDB backend works well for local workflows. For larger-scale use (remote databases, shared teams), implement the `IndexBackend` protocol:
+The default TinyDB backend works well for local workflows. For larger-scale use
+(remote databases, shared teams), implement the `IndexBackend` protocol:
 
 ```python
 from entropic.index import IndexBackend
@@ -143,14 +167,24 @@ store = Store("./results", index=PostgresIndex(conn_string="..."))
 A runner is any callable with this signature:
 
 ```python
-def runner(params: dict[str, Any], result_path: Path) -> None:
+def runner(params: dict[str, Any], result_path: Path):
     # 1. Use `params` to configure your simulation
     # 2. Write results to `result_path` (any format you want)
-    # 3. Return nothing — entropic handles the rest
     ...
 ```
 
-The library generates `result_path` for you (timestamp + hash + suffix). You just write to it.
+The library generates `result_path` for you (timestamp + hash + suffix). You just write
+to it.
+
+## Logging
+
+entropic uses a `NullHandler` by default (no output). To see what the library is doing:
+
+```python
+import logging
+logging.getLogger("entropic").addHandler(logging.StreamHandler())
+logging.getLogger("entropic").setLevel(logging.INFO)
+```
 
 ## Development
 
