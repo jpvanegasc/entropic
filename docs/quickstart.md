@@ -12,12 +12,11 @@ from entropic import Store
 store = Store("./results", "./runs.json")
 
 def my_sim(params: dict, result_path: Path) -> None:
-    rng = np.random.default_rng(params["seed"])
-    data = rng.standard_normal(params["n"])
+    data = np.random.randn(params["n"], params["steps"])
     np.save(result_path, data)
 
 record = store.run_or_retrieve(
-    params={"n": 10_000, "seed": 42},
+    params={"n": 100, "steps": 5000, "dt": 0.01},
     runner=my_sim,
 )
 
@@ -31,11 +30,32 @@ The first call runs the simulation. Every subsequent call with the same paramete
 `run_or_retrieve` (and all other methods that produce a result) returns a `RunRecord`:
 
 ```python
-record.params         # {"n": 10_000, "seed": 42}
+record.params         # {"n": 100, "steps": 5000, "dt": 0.01}
 record.result_path    # Path("./results/1769854174.763568_a3f8c1d2e4b6f7a8.npy")
 record.params_hash    # "a3f8c1d2e4b6f7a8"
 record.created_at     # "2025-06-15T10:30:00+00:00"
-record.metadata       # {"elapsed_seconds": 0.012}
+record.metadata       # {"elapsed_seconds": 0.042}
+```
+
+## Retrieving without running
+
+Look up a cached run without triggering execution:
+
+```python
+record = store.retrieve(params={"n": 100, "steps": 5000, "dt": 0.01})
+```
+
+Returns the `RunRecord` on a hit, `None` on a miss.
+
+## Forcing a re-run
+
+To always execute the runner regardless of the cache — useful for stochastic simulations where you want multiple independent runs with identical parameters:
+
+```python
+record = store.run(
+    params={"n": 100, "steps": 5000, "dt": 0.01},
+    runner=my_sim,
+)
 ```
 
 ## Querying runs
@@ -49,23 +69,23 @@ records = store.list()
 Filter by a partial parameter match — only the provided keys need to match:
 
 ```python
-large_runs = store.list(where={"n": 10_000})
+fine_dt_runs = store.list(where={"dt": 0.01})
 ```
 
-This returns every record where `n == 10_000` regardless of other parameters.
+This returns every record where `dt == 0.01` regardless of other parameters.
 
 ## Deleting runs
 
 Remove a record from the index:
 
 ```python
-store.delete(params={"n": 10_000, "seed": 42})
+store.delete(params={"n": 100, "steps": 5000, "dt": 0.01})
 ```
 
 Pass `remove_file=True` to also delete the result file from disk:
 
 ```python
-store.delete(params={"n": 10_000, "seed": 42}, remove_file=True)
+store.delete(params={"n": 100, "steps": 5000, "dt": 0.01}, remove_file=True)
 ```
 
 Returns `True` if a matching record was found and removed, `False` otherwise.
@@ -76,7 +96,7 @@ If you produced a result file outside entropic and want to index it:
 
 ```python
 store.register(
-    params={"n": 10_000, "seed": 42},
+    params={"n": 100, "steps": 5000, "dt": 0.01},
     result_path="./results/my_existing_run.npy",
 )
 ```
@@ -89,7 +109,7 @@ Run or retrieve results for a batch of parameter sets:
 
 ```python
 records = store.sweep(
-    [{"n": 10_000, "seed": s} for s in range(10)],
+    [{"n": 100, "steps": 5000, "dt": dt} for dt in [0.01, 0.005, 0.001]],
     runner=my_sim,
 )
 ```

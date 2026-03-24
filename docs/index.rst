@@ -1,11 +1,16 @@
 entropic
 ========
 
-A simulation-agnostic run cache: maps parameters → result file without caring what's inside.
+Entropic is a minimal, file-based run cache for Python-driven simulations and scripts.
+By hashing your input parameters, it automatically identifies duplicate runs and skips
+unnecessary computation. It is completely agnostic to your simulation engine,
+lightweight by design, and built to manage locally run research workflows without
+getting in your way.
 
-Install with pip (Python 3.10+, TinyDB auto-installed)::
+Installation::
 
    pip install entropic
+   uv add entropic
 
 .. toctree::
    :maxdepth: 2
