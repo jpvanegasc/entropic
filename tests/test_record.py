@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from entropic.record import RunRecord
 
 
@@ -49,3 +51,27 @@ def test_reserved_keys_excluded_from_params():
     record = RunRecord.from_dict(d)
     assert "params_hash" not in record.params
     assert "n" in record.params
+
+
+def test_from_dict_missing_metadata():
+    """from_dict defaults to empty dict when metadata key is absent."""
+    d = {
+        "params_hash": "abc",
+        "result_path": "./test.h5",
+        "created_at": "2025-01-01",
+        "n": 10,
+    }
+    record = RunRecord.from_dict(d)
+    assert record.metadata == {}
+
+
+def test_frozen_immutability():
+    """RunRecord fields cannot be reassigned."""
+    record = RunRecord(
+        params={"n": 10},
+        result_path=Path("./test.h5"),
+        params_hash="abc",
+        created_at="2025-01-01",
+    )
+    with pytest.raises(AttributeError):
+        record.params_hash = "new"  # type: ignore[misc]

@@ -70,3 +70,43 @@ def test_hash_length():
     h = hash_params({"x": 42})
     assert len(h) == 16
     assert all(c in "0123456789abcdef" for c in h)
+
+
+def test_none_value():
+    """None values produce a deterministic hash."""
+    h1 = hash_params({"x": None})
+    h2 = hash_params({"x": None})
+    assert h1 == h2
+    assert len(h1) == 16
+
+
+def test_bool_vs_int():
+    """True hashes differently from 1 (json: true vs 1)."""
+    h_bool = hash_params({"flag": True})
+    h_int = hash_params({"flag": 1})
+    assert h_bool != h_int
+
+
+def test_empty_dict():
+    """Empty params produce a valid hash."""
+    h = hash_params({})
+    assert len(h) == 16
+    assert all(c in "0123456789abcdef" for c in h)
+
+
+def test_tuple_treated_as_list():
+    """Tuples are normalized to lists before hashing."""
+    h_tuple = hash_params({"x": (1, 2, 3)})
+    h_list = hash_params({"x": [1, 2, 3]})
+    assert h_tuple == h_list
+
+
+def test_str_fallback():
+    """Unknown types fall back to str()."""
+
+    class Custom:
+        def __str__(self) -> str:
+            return "custom_value"
+
+    h = hash_params({"x": Custom()})
+    assert len(h) == 16
