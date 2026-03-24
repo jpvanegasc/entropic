@@ -82,3 +82,28 @@ store.register(
 ```
 
 The file must already exist. After registration it is retrievable via `store.retrieve()` or `store.list()` like any other run.
+
+## Parameter sweeps
+
+Run or retrieve results for a batch of parameter sets:
+
+```python
+records = store.sweep(
+    [{"n": 10_000, "seed": s} for s in range(10)],
+    runner=my_sim,
+)
+```
+
+Cached results are reused — only new parameter combinations trigger the runner.
+
+## Logging
+
+entropic uses a `NullHandler` by default (silent). To enable logging:
+
+```python
+import logging
+logging.getLogger("entropic").addHandler(logging.StreamHandler())
+logging.getLogger("entropic").setLevel(logging.INFO)
+```
+
+This logs cache hits, run completions, and file operations.

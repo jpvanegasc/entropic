@@ -87,6 +87,21 @@ Return all records, or only those matching a partial parameter filter.
 
 `where={"method": "rk4"}` returns every record where `method == "rk4"` regardless of other parameters.
 
+#### `sweep`
+
+```python
+def sweep(
+    self,
+    params_iter: Iterable[dict[str, Any]],
+    runner: Runner,
+    **metadata: Any,
+) -> list[RunRecord]
+```
+
+Run or retrieve results for each parameter set in the iterable. Returns a list of `RunRecord` objects in the same order as the input. Reuses cached results where possible — only calls the runner for parameter sets not already in the index.
+
+Extra keyword arguments are stored as metadata on each new record.
+
 #### `delete`
 
 ```python
