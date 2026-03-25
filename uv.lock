@@ -306,7 +306,7 @@ wheels = [
 
 [[package]]
 name = "entropic"
-version = "2.0.0a1"
+version = "2.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "tinydb" },
