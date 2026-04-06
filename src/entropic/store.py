@@ -1,6 +1,6 @@
 """Store — the main entry point for managing simulation runs."""
 
-from collections.abc import Iterable, Callable, Generator
+from collections.abc import Iterable, Callable, Generator, Iterator
 from datetime import datetime, timezone
 from pathlib import Path
 from time import time
@@ -172,6 +172,7 @@ class Store:
         Returns:
             Generator of RunRecords in the same order as the input.
         """
+        # TODO: allow concurrent run_or_retrieve
         for params in params_iter:
             yield self.run_or_retrieve(params, runner, **metadata)
 
@@ -181,7 +182,7 @@ class Store:
         params_iter: Iterable[dict[str, Any]],
         runner: Runner,
         **metadata: Any,
-    ) -> Generator[Any, None, None]:
+    ) -> Iterator[Any]:
         """Apply `function` to every result of run_or_retrieve for each parameter set in
         the iterable.
 
@@ -195,8 +196,8 @@ class Store:
         Returns:
             Generator of the results of function(record) for each parameter set
         """
-        for record in self.sweep(params_iter, runner, **metadata):
-            yield function(record)
+        # TODO: validate once concurrent sweep is in place
+        return map(function, self.sweep(params_iter, runner, **metadata))
 
     def register(
         self,
