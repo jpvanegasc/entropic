@@ -1,15 +1,11 @@
 """RunRecord — immutable record of a completed simulation run."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-
-RESERVED_KEYS: frozenset[str] = frozenset(
-    {"params_hash", "result_path", "created_at", "metadata"}
-)
+MANDATORY_KEYS: frozenset[str] = frozenset({"params_hash", "result_path", "created_at"})
+RESERVED_KEYS: frozenset[str] = frozenset(MANDATORY_KEYS | {"metadata"})
 
 
 @dataclass(frozen=True)
@@ -41,8 +37,14 @@ class RunRecord:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> RunRecord:
+    def from_dict(cls, data: dict[str, Any]) -> "RunRecord":
         """Reconstruct from a stored dict."""
+        if missing := (MANDATORY_KEYS - set(data.keys())):
+            raise ValueError(
+                f"param 'data' must be a valid RunRecord:"
+                f" fields {missing} have to be present"
+            )
+
         params = {k: v for k, v in data.items() if k not in RESERVED_KEYS}
         return cls(
             params=params,

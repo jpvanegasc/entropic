@@ -1,7 +1,5 @@
 """Store — the main entry point for managing simulation runs."""
 
-from __future__ import annotations
-
 from collections.abc import Iterable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,7 +11,6 @@ from entropic.index import IndexBackend, TinyDBIndex
 from entropic.logging import logger
 from entropic.record import RESERVED_KEYS, RunRecord
 
-# A runner receives (params, result_path) and writes results to result_path.
 Runner = Callable[[dict[str, Any], Path], None]
 
 
@@ -21,7 +18,6 @@ class Store:
     """Simulation-agnostic run cache.
 
     Manages the mapping: parameters → result file.
-    Does not touch what's inside the result files — that's your business.
 
     Usage::
 
@@ -159,6 +155,7 @@ class Store:
             return existing
         return self.run(params, runner, **metadata)
 
+    # TODO: return generator
     def sweep(
         self,
         params_iter: Iterable[dict[str, Any]],

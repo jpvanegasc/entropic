@@ -1,7 +1,7 @@
 [project]
 name = "entropic"
 version = "2.0.0"
-description = "Manage, retrieve, and deduplicate simulation results"
+description = "Minimal, file-based run cache for Python-driven simulations and scripts."
 readme = "README.md"
 license = "MIT"
 authors = [
