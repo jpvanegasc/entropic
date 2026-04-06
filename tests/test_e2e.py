@@ -8,6 +8,7 @@ parameter hashing, and logging — all through a realistic simulation flow.
 import csv
 from pathlib import Path
 
+from entropic.record import RunRecord
 import pytest
 
 from entropic import Store
@@ -65,6 +66,15 @@ def test_full_workflow(store: Store, tmp_path: Path) -> None:
         nonlocal call_count
         call_count += 1
         logistic_runner(params, result_path)
+
+    def find_max(record: RunRecord) -> float:
+        max_x = 0.0
+        with open(record.result_path) as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if float(row["x"]) >= max_x:
+                    max_x = float(row["x"])
+        return max_x
 
     # 1. run_or_retrieve — cache miss
     r1 = store.run_or_retrieve(PARAMS_A, counting_runner, tag="first")
@@ -127,12 +137,17 @@ def test_full_workflow(store: Store, tmp_path: Path) -> None:
     # 7. sweep — run over a param grid, reuses cache
     sweep_params = [{**PARAMS_A, "x0": x0} for x0 in [2.0, 5.0, 10.0]]
     # x0=2.0 is already cached (same as PARAMS_A)
-    records = store.sweep(sweep_params, counting_runner)
+    records = list(store.sweep(sweep_params, counting_runner))
     assert len(records) == 3
     assert call_count == 4  # only x0=5.0 and x0=10.0 are new
     assert all(r.result_path.exists() for r in records)
 
-    # 8. delete — record only
+    # map - apply a function to the results of a param grid
+    results = list(store.map(find_max, sweep_params, counting_runner))
+    assert len(results) == 3
+    assert results == [99.779253, 99.918218, 99.9626]
+
+    # delete — record only
     assert store.delete(PARAMS_B)
     assert store.retrieve(PARAMS_B) is None
     assert external_path.exists()  # file kept
