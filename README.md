@@ -90,18 +90,6 @@ store.register(
 )
 ```
 
-#### `store.list(where=None) → list[RunRecord]`
-
-List all runs, optionally filtered by partial parameter match. This is how you query by
-a subset of parameters — e.g., all runs with a specific grid size regardless of other
-settings.
-
-```python
-all_runs = store.list()
-rk4_runs = store.list(where={"method": "rk4"})
-specific = store.list(where={"method": "rk4", "n": 50})
-```
-
 #### `store.sweep(params_iter, runner, **metadata) → list[RunRecord]`
 
 Run or retrieve results for each parameter set in an iterable. Reuses cached results
@@ -113,11 +101,6 @@ records = store.sweep(
     runner=my_simulation,
 )
 ```
-
-#### `store.delete(params, remove_file=False) → bool`
-
-Delete a run record by exact parameter match. Optionally removes the result file from
-disk.
 
 ### `RunRecord`
 

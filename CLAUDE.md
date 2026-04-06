@@ -4,7 +4,7 @@
 
 `entropic` is a simulation-agnostic run cache library. It manages the mapping **parameters → result file** without knowing or caring what's inside the result files. The core workflow is `run_or_retrieve`: given a set of parameters and a runner callable, return a cached result or execute the simulation and cache it.
 
-This is v2. The library is published on PyPI as `entropic`.
+The library is published on PyPI as `entropic`.
 
 ## Tech stack
 
@@ -31,7 +31,7 @@ src/entropic/
 
 ### Key design decisions
 
-- **Params are stored as flat TinyDB fields**, not nested under a `"params"` key. This enables field-by-field partial queries via `store.list(where={"method": "rk4"})`. Reserved keys (`params_hash`, `result_path`, `created_at`, `metadata`) are mixed in at the same level — user param names must not collide with these.
+- **Params are stored as flat TinyDB fields**, not nested under a `"params"` key. This enables field-by-field partial queries via `store.list(where={"method": "rk4"})`. Reserved keys (`params_hash`, `result_path`, `created_at`, `metadata`) are mixed in at the same level — user param names must not collide with these, and raise exceptions if used.
 - **IndexBackend is a Protocol** (runtime_checkable). TinyDB ships as default, but any backend implementing 5 methods works. This is the extension point for SQLite, Postgres, S3, etc.
 - **Parameter hashing** normalizes before hashing: sorts dict keys, rounds floats to 12 digits, converts enums to `.value`, falls back to `str()`. The hash is the first 16 hex chars of SHA-256 — deterministic across Python runs.
 - **Runner contract**: `Callable[[dict, Path], None]`. The library generates the result path; the runner just writes to it. This keeps entropic format-agnostic (HDF5, NumPy, Parquet, CSV, whatever).
@@ -94,13 +94,3 @@ uv run pre-commit run --all-files
 - **`test_logging.py`** — verifies logger name and that users can capture messages.
 - All tests use `tmp_path` for filesystem isolation. Runner stubs write plain text or CSV (no numpy dependency in tests).
 - Coverage threshold: 80% (enforced in CI).
-
-## Roadmap / future work
-
-- **Additional backends**: SQLiteIndex, PostgresIndex, S3-backed storage
-- ~~**Parameter sweeps**~~: shipped as `store.sweep()` in v2
-- **Async runners**: support for `async def runner(params, path)` and concurrent execution
-- **CLI**: `entropic list`, `entropic run`, `entropic gc` for managing results from the terminal
-- **Result comparison utilities**: diff two runs, plot parameter sensitivity
-- **Provenance tracking**: git SHA, environment info, dependency versions auto-captured
-- **Migration from v1**: helper to import existing v1 index files

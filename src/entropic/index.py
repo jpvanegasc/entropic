@@ -4,8 +4,6 @@ The default backend uses TinyDB (a JSON-file database).
 Custom backends can be created by implementing the IndexBackend protocol.
 """
 
-from __future__ import annotations
-
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
