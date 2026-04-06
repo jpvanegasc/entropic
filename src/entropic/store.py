@@ -1,10 +1,10 @@
 """Store — the main entry point for managing simulation runs."""
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Callable, Generator
 from datetime import datetime, timezone
 from pathlib import Path
 from time import time
-from typing import Any, Callable
+from typing import Any
 
 from entropic.hashing import hash_params
 from entropic.index import IndexBackend, TinyDBIndex
@@ -12,6 +12,7 @@ from entropic.logging import logger
 from entropic.record import RESERVED_KEYS, RunRecord
 
 Runner = Callable[[dict[str, Any], Path], None]
+MapFunction = Callable[[RunRecord], Any]
 
 
 class Store:
@@ -155,13 +156,12 @@ class Store:
             return existing
         return self.run(params, runner, **metadata)
 
-    # TODO: return generator
     def sweep(
         self,
         params_iter: Iterable[dict[str, Any]],
         runner: Runner,
         **metadata: Any,
-    ) -> list[RunRecord]:
+    ) -> Generator[RunRecord, None, None]:
         """Run or retrieve results for each parameter set in the iterable.
 
         Args:
@@ -170,11 +170,33 @@ class Store:
             **metadata: Optional metadata passed to each run.
 
         Returns:
-            List of RunRecords in the same order as the input.
+            Generator of RunRecords in the same order as the input.
         """
-        return [
-            self.run_or_retrieve(params, runner, **metadata) for params in params_iter
-        ]
+        for params in params_iter:
+            yield self.run_or_retrieve(params, runner, **metadata)
+
+    def map(
+        self,
+        function: MapFunction,
+        params_iter: Iterable[dict[str, Any]],
+        runner: Runner,
+        **metadata: Any,
+    ) -> Generator[Any, None, None]:
+        """Apply `function` to every result of run_or_retrieve for each parameter set in
+        the iterable.
+
+        Args:
+            function: Callable(run_record) that performs a operation on top of a run
+                record.
+            params_iter: Iterable of parameter dicts to sweep over.
+            runner: Callable(params, result_path) that executes the simulation.
+            **metadata: Optional metadata passed to each run.
+
+        Returns:
+            Generator of the results of function(record) for each parameter set
+        """
+        for record in self.sweep(params_iter, runner, **metadata):
+            yield function(record)
 
     def register(
         self,
