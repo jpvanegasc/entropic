@@ -25,7 +25,7 @@ def _normalize(value: Any) -> Any:
     return str(value)
 
 
-def hash_params(params: dict[str, Any]) -> str:
+def hash_dict(params: dict[str, Any]) -> str:
     """Compute a deterministic 16-char hex hash of simulation parameters.
 
     The hash is stable across Python runs (no random seed involved).

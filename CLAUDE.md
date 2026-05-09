@@ -1,96 +1,67 @@
 # CLAUDE.md
 
-## Project overview
-
-`entropic` is a simulation-agnostic run cache library. It manages the mapping **parameters → result file** without knowing or caring what's inside the result files. The core workflow is `run_or_retrieve`: given a set of parameters and a runner callable, return a cached result or execute the simulation and cache it.
-
-The library is published on PyPI as `entropic`.
-
-## Tech stack
-
-- **Language**: Python 3.10+
-- **Dependencies**: TinyDB (JSON-file database for metadata indexing)
-- **Build system**: uv_build
-- **Testing**: pytest
-- **Linting**: ruff (pyflakes, pycodestyle, isort, bugbear)
-- **Type checking**: mypy (strict mode)
-- **Code quality (format, linting, type checking**: pre-commit
-
-## Architecture
-
-```
-src/entropic/
-├── __init__.py    # Public API: Store, RunRecord
-├── store.py       # Store class — main entry point (run, retrieve, run_or_retrieve, sweep, register, list, delete)
-├── record.py      # RunRecord frozen dataclass — serialization to/from flat dicts
-├── hashing.py     # Deterministic parameter hashing (SHA-256 of normalized JSON)
-├── index.py       # IndexBackend protocol + TinyDBIndex default implementation
-├── logging.py     # Centralized logger (NullHandler default)
-└── py.typed       # PEP 561 marker
-```
-
-### Key design decisions
-
-- **Params are stored as flat TinyDB fields**, not nested under a `"params"` key. This enables field-by-field partial queries via `store.list(where={"method": "rk4"})`. Reserved keys (`params_hash`, `result_path`, `created_at`, `metadata`) are mixed in at the same level — user param names must not collide with these, and raise exceptions if used.
-- **IndexBackend is a Protocol** (runtime_checkable). TinyDB ships as default, but any backend implementing 5 methods works. This is the extension point for SQLite, Postgres, S3, etc.
-- **Parameter hashing** normalizes before hashing: sorts dict keys, rounds floats to 12 digits, converts enums to `.value`, falls back to `str()`. The hash is the first 16 hex chars of SHA-256 — deterministic across Python runs.
-- **Runner contract**: `Callable[[dict, Path], None]`. The library generates the result path; the runner just writes to it. This keeps entropic format-agnostic (HDF5, NumPy, Parquet, CSV, whatever).
-- **`run()` always creates a new record** (even for duplicate params). `run_or_retrieve()` deduplicates via hash lookup first. This distinction matters for stochastic simulations.
-
-### Data flow
-
-```
-User params (dict)
-    → hash_params() → 16-char hex hash
-    → TinyDBIndex.find_by_hash()
-        → cache hit: return RunRecord
-        → cache miss: runner(params, generated_path)
-            → TinyDBIndex.insert(RunRecord)
-            → return RunRecord
-```
-
-### TinyDB document shape
-
-```json
-{
-  "params_hash": "a3f8c1d2e4b6f7a8",
-  "result_path": "./results/1769854174.763568_a3f8c1d2e4b6f7a8.h5",
-  "created_at": "2025-06-15T10:30:00+00:00",
-  "metadata": { "elapsed_seconds": 1.234 },
-  "n": 100,
-  "steps": 5000,
-  "dt": 0.01
-}
-```
-
-User params (`n`, `steps`, `dt`) are flattened alongside reserved fields.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Commands
 
 ```bash
-# Install (editable, with dev deps)
-uv sync --group dev
-
 # Run tests
 uv run pytest tests/ -v
 
-# Lint + format + type check
+# Run a single test
+uv run pytest tests/test_e2e.py::test_name -v
+
+# Type checking (strict mode)
+uv run mypy src/
+
+# Coverage (CI requires ≥80%)
+uv run coverage run -m pytest && uv run coverage report -i --fail-under=80
+
+# Lint/format (ruff via pre-commit)
 uv run pre-commit run --all-files
+
+# Install dev dependencies
+uv sync --group dev
 ```
 
-## Conventions
+## Architecture
 
-- All public API is exposed through `entropic/__init__.py` (`Store`, `RunRecord`).
-- Use frozen dataclasses for data objects.
-- Type hints everywhere — mypy strict mode is enabled.
-- The `IndexBackend` protocol lives in `index.py` alongside the default `TinyDBIndex`.
+`entropic` is a minimal run-cache for Python simulations. It hashes input parameters to detect duplicate runs and skips redundant computation. The user provides a `runner` callable; entropic manages persistence on top of SQLite/SQLAlchemy.
 
-## Testing
+### Core components
 
-- **`test_e2e.py`** — one big end-to-end test using a self-contained logistic growth ODE runner. Exercises the full workflow (all Store methods, record serialization, index persistence, logging). This alone provides ≥70% coverage.
-- **`test_hashing.py`** — unit tests for hashing edge cases (None, bools vs ints, empty dicts, tuples, str fallback, float normalization, enums).
-- **`test_record.py`** — unit tests for RunRecord serialization (roundtrip, flattening, reserved keys, immutability).
-- **`test_store.py`** — edge-case unit tests only (runner exceptions, delete on missing files, metadata forwarding, FileNotFoundError on register).
-- **`test_logging.py`** — verifies logger name and that users can capture messages.
-- All tests use `tmp_path` for filesystem isolation. Runner stubs write plain text or CSV (no numpy dependency in tests).
-- Coverage threshold: 80% (enforced in CI).
+**`store.py` — `Store[ModelT]`**: The main generic class. Constructor requires `runner`, `result_cls` (a user-defined SQLAlchemy model), `results_dir`, and optionally `file_suffix` and `db_url` (default `sqlite:///db.sqlite3`). Uses `NullPool` on every session to avoid connection leaks.
+
+Run flow: params → `hash_dict()` → hash-keyed sidecar JSON in `results_dir` → ingest to SQLite via `_ingest_to_db()` (deletes sidecar on success).
+
+Primary API surface:
+- `run_or_retrieve(params)` — cache-hit or run
+- `run(params)` — force run even if cached
+- `retrieve(params)` — lookup by params hash
+- `sweep(param_grid)` — batch run over a grid
+- `register(params, file_path)` — index an externally produced file
+- `list(filters)` — list records with optional column filters
+- `delete(params, remove_file)` — delete a record
+
+**`db.py` — `Base`**: SQLAlchemy `DeclarativeBase` with four reserved columns: `id` (str PK, the hash), `result_file` (str), `created_at` (datetime), `custom_data` (JSON/MutableDict). Users subclass `Base` and add their own simulation parameter columns. `apply_patch()` and `_apply_custom_data_patch()` allow partial updates.
+
+**`hashing.py` — `hash_dict(params)`**: Returns the first 16 hex chars of SHA-256 of a canonically normalized JSON payload. `_normalize()` handles: dicts sorted by key, floats rounded to 12 significant figures, enums via `.value`, tuples flattened to lists.
+
+### User-defined model pattern
+
+```python
+from entropic import Base, Mapped, mapped_column
+
+class SimResult(Base):
+    __tablename__ = "results"
+    alpha: Mapped[float] = mapped_column()
+    beta: Mapped[float] = mapped_column()
+
+store = Store(runner=my_runner, result_cls=SimResult, results_dir=Path("./results"))
+```
+
+The four reserved column names (`id`, `result_file`, `created_at`, `custom_data`) cannot be used as user-defined columns — `Store` validates this at construction time.
+
+### Testing approach
+
+Tests use a real in-memory SQLite DB and `tmp_path` (no mocking of the DB layer). `test_e2e.py` is the primary coverage vehicle — it exercises the full workflow end-to-end with a logistic growth ODE runner writing CSV files.

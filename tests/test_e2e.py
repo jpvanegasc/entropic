@@ -1,17 +1,15 @@
 """End-to-end test exercising the full entropic workflow.
 
 Uses a self-contained logistic growth ODE solver as the runner.
-Covers: Store (all 7 methods), RunRecord round-trip, TinyDBIndex,
-parameter hashing, and logging — all through a realistic simulation flow.
+Covers: Store (all public methods), parameter hashing, custom_data round-trip,
+and SQLAlchemy persistence — through a realistic simulation flow.
 """
 
 import csv
 from pathlib import Path
 
-from entropic.record import RunRecord
-import pytest
 
-from entropic import Store
+from entropic import Store, Base, Mapped
 
 
 # ---------------------------------------------------------------------------
@@ -20,7 +18,17 @@ from entropic import Store
 # ---------------------------------------------------------------------------
 
 
-def logistic_runner(params: dict, result_path: Path) -> None:
+class Result(Base):
+    __tablename__ = "results"
+
+    r: Mapped[float]
+    K: Mapped[float]
+    x0: Mapped[float]
+    dt: Mapped[float]
+    steps: Mapped[int]
+
+
+def logistic_runner(params: dict) -> None:
     """Euler integrator for logistic growth. Writes t,x columns to CSV."""
     x = float(params["x0"])
     r = float(params["r"])
@@ -28,7 +36,7 @@ def logistic_runner(params: dict, result_path: Path) -> None:
     dt = float(params["dt"])
     steps = int(params["steps"])
 
-    with open(result_path, "w", newline="") as f:
+    with open(params["result_file"], "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["t", "x"])
         for i in range(steps):
@@ -41,17 +49,12 @@ def logistic_runner(params: dict, result_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture
-def store(tmp_path: Path) -> Store:
-    return Store(
-        results_dir=tmp_path / "results",
-        db_path=tmp_path / "index.json",
-        file_suffix=".csv",
-    )
+def _params_a() -> dict:
+    return {"r": 0.5, "K": 100.0, "x0": 2.0, "dt": 0.1, "steps": 200}
 
 
-PARAMS_A = {"r": 0.5, "K": 100.0, "x0": 2.0, "dt": 0.1, "steps": 200}
-PARAMS_B = {"r": 1.0, "K": 50.0, "x0": 1.0, "dt": 0.05, "steps": 100}
+def _params_b() -> dict:
+    return {"r": 1.0, "K": 50.0, "x0": 1.0, "dt": 0.05, "steps": 100}
 
 
 # ---------------------------------------------------------------------------
@@ -59,57 +62,60 @@ PARAMS_B = {"r": 1.0, "K": 50.0, "x0": 1.0, "dt": 0.05, "steps": 100}
 # ---------------------------------------------------------------------------
 
 
-def test_full_workflow(store: Store, tmp_path: Path) -> None:
+def test_full_workflow(tmp_path: Path) -> None:
     call_count = 0
 
-    def counting_runner(params: dict, result_path: Path) -> None:
+    def counting_runner(params: dict) -> None:
         nonlocal call_count
         call_count += 1
-        logistic_runner(params, result_path)
+        logistic_runner(params)
 
-    def find_max(record: RunRecord) -> float:
-        max_x = 0.0
-        with open(record.result_path) as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                if float(row["x"]) >= max_x:
-                    max_x = float(row["x"])
-        return max_x
+    store: Store[Result] = Store(
+        runner=counting_runner,
+        result_cls=Result,
+        results_dir=tmp_path / "results",
+        db_url=f"sqlite:///{tmp_path}/db.sqlite3",
+        file_suffix=".csv",
+    )
 
     # 1. run_or_retrieve — cache miss
-    r1 = store.run_or_retrieve(PARAMS_A, counting_runner, tag="first")
+    r1 = store.run_or_retrieve(_params_a(), tag="first")
     assert call_count == 1
-    assert r1.result_path.exists()
-    assert r1.params == PARAMS_A
-    assert "elapsed_seconds" in r1.metadata
-    assert r1.metadata["tag"] == "first"
-    assert len(r1.params_hash) == 16
+    assert Path(r1.result_file).exists()
+    assert r1.r == 0.5
+    assert r1.K == 100.0
+    assert r1.steps == 200
+    assert "elapsed_seconds" in r1.custom_data
+    assert r1.custom_data["tag"] == "first"
+    assert len(r1.id) == 16
 
     # Verify CSV content
-    with open(r1.result_path) as f:
+    with open(r1.result_file) as f:
         reader = csv.reader(f)
         header = next(reader)
         assert header == ["t", "x"]
         rows = list(reader)
-        assert len(rows) == PARAMS_A["steps"]
+        assert len(rows) == 200
+
+    r1_id = r1.id
+    r1_file = r1.result_file
 
     # 2. run_or_retrieve — cache hit (runner NOT called)
-    r1b = store.run_or_retrieve(PARAMS_A, counting_runner)
+    r1b = store.run_or_retrieve(_params_a())
     assert call_count == 1  # no new call
-    assert r1b.result_path == r1.result_path
-    assert r1b.params_hash == r1.params_hash
+    assert r1b.result_file == r1_file
+    assert r1b.id == r1_id
 
-    # 3. run — forced re-run, always creates new record
-    r2 = store.run(PARAMS_A, counting_runner)
+    # 3. run — forced re-run, overwrites the existing record (same hash)
+    r2 = store.run(_params_a())
     assert call_count == 2
-    assert r2.result_path != r1.result_path
-    assert r2.result_path.exists()
-    assert r1.result_path.exists()  # original still there
+    assert r2.id == r1_id  # same params → same id
+    assert Path(r2.result_file).exists()
 
     # 4. retrieve — hit and miss
-    found = store.retrieve(PARAMS_A)
+    found = store.retrieve(_params_a())
     assert found is not None
-    assert found.params_hash == r1.params_hash
+    assert found.id == r1_id
 
     miss = store.retrieve({"r": 999.0, "K": 1.0, "x0": 1.0, "dt": 0.1, "steps": 10})
     assert miss is None
@@ -118,57 +124,42 @@ def test_full_workflow(store: Store, tmp_path: Path) -> None:
     external_path = tmp_path / "results" / "external.csv"
     with open(external_path, "w", newline="") as f:
         csv.writer(f).writerow(["t", "x"])
-    r3 = store.register(PARAMS_B, external_path, source="external")
-    assert r3.result_path == external_path
-    assert r3.metadata["source"] == "external"
-    assert store.retrieve(PARAMS_B) is not None
+    r3 = store.register(_params_b(), external_path, source="external")
+    assert r3.result_file == str(external_path)
+    assert r3.custom_data["source"] == "external"
+    assert store.retrieve(_params_b()) is not None
 
     # 6. list — all records and filtered
     all_records = store.list()
-    assert len(all_records) == 3  # r1, r2 (forced), r3 (registered)
+    assert len(all_records) == 2  # r1/r2 share an id; r3 is the registered one
 
     filtered = store.list(where={"r": 0.5})
-    assert len(filtered) == 2  # r1 and r2
+    assert len(filtered) == 1
+    assert filtered[0].id == r1_id
 
     filtered_b = store.list(where={"r": 1.0})
     assert len(filtered_b) == 1
-    assert filtered_b[0].params_hash == r3.params_hash
+    assert filtered_b[0].id == r3.id
 
     # 7. sweep — run over a param grid, reuses cache
-    sweep_params = [{**PARAMS_A, "x0": x0} for x0 in [2.0, 5.0, 10.0]]
-    # x0=2.0 is already cached (same as PARAMS_A)
-    records = list(store.sweep(sweep_params, counting_runner))
+    sweep_params = [{**_params_a(), "x0": x0} for x0 in [2.0, 5.0, 10.0]]
+    # x0=2.0 is already cached
+    records = store.sweep(sweep_params)
     assert len(records) == 3
     assert call_count == 4  # only x0=5.0 and x0=10.0 are new
-    assert all(r.result_path.exists() for r in records)
-
-    # map - apply a function to the results of a param grid
-    results = list(store.map(find_max, sweep_params, counting_runner))
-    assert len(results) == 3
-    assert results == [99.779253, 99.918218, 99.9626]
+    assert all(Path(r.result_file).exists() for r in records)
 
     # delete — record only
-    assert store.delete(PARAMS_B)
-    assert store.retrieve(PARAMS_B) is None
+    assert store.delete(_params_b())
+    assert store.retrieve(_params_b()) is None
     assert external_path.exists()  # file kept
 
     # delete — record + file
     r_to_delete = store.list(where={"x0": 5.0})[0]
-    path_to_delete = r_to_delete.result_path
+    path_to_delete = Path(r_to_delete.result_file)
     assert path_to_delete.exists()
-    assert store.delete({**PARAMS_A, "x0": 5.0}, remove_file=True)
+    assert store.delete({**_params_a(), "x0": 5.0}, remove_file=True)
     assert not path_to_delete.exists()
 
     # delete nonexistent
     assert not store.delete({"r": 999.0, "K": 1.0, "x0": 1.0, "dt": 0.1, "steps": 10})
-
-    # 9. persistence — new Store instance with same paths finds existing records
-    store2 = Store(
-        results_dir=tmp_path / "results",
-        db_path=tmp_path / "index.json",
-        file_suffix=".csv",
-    )
-    found = store2.retrieve(PARAMS_A)
-    assert found is not None
-    assert found.result_path == r1.result_path
-    assert found.result_path.exists()

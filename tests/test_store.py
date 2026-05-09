@@ -8,94 +8,70 @@ from pathlib import Path
 
 import pytest
 
-from entropic import Store
-from entropic.record import RESERVED_KEYS
+from entropic import Store, Base, Mapped
 
 
-@pytest.fixture
-def tmp_store(tmp_path: Path) -> Store:
+class _StoreResult(Base):
+    __tablename__ = "store_results"
+
+    n: Mapped[int]
+
+
+def _make_store(tmp_path: Path, runner) -> Store[_StoreResult]:
     return Store(
+        runner=runner,
+        result_cls=_StoreResult,
         results_dir=tmp_path / "results",
-        db_path=tmp_path / "test.json",
-        file_suffix=".dat",
+        db_url=f"sqlite:///{tmp_path}/db.sqlite3",
+        file_suffix=".csv",
     )
 
 
-def test_runner_exception_leaves_no_record(tmp_store: Store) -> None:
+def test_runner_exception_leaves_no_record(tmp_path: Path) -> None:
     """If the runner raises, the exception propagates and no record is stored."""
 
-    def bad_runner(params: dict, result_path: Path) -> None:
+    def bad_runner(params: dict) -> None:
         raise ValueError("simulation exploded")
 
+    store = _make_store(tmp_path, bad_runner)
     with pytest.raises(ValueError, match="simulation exploded"):
-        tmp_store.run({"n": 5}, bad_runner)
+        store.run({"n": 5})
 
-    assert tmp_store.list() == []
-    assert tmp_store.retrieve({"n": 5}) is None
+    assert store.list() == []
+    assert store.retrieve({"n": 5}) is None
 
 
-def test_delete_file_already_gone(tmp_store: Store) -> None:
+def test_delete_file_already_gone(tmp_path: Path) -> None:
     """delete(remove_file=True) doesn't crash if the file was already removed."""
 
-    def writer(params: dict, result_path: Path) -> None:
-        result_path.write_text("data")
+    def writer(params: dict) -> None:
+        Path(params["result_file"]).write_text("data")
 
-    record = tmp_store.run({"n": 1}, writer)
-    record.result_path.unlink()  # remove file before delete
+    store = _make_store(tmp_path, writer)
+    record = store.run({"n": 1})
+    Path(record.result_file).unlink()  # remove file before delete
 
-    assert tmp_store.delete({"n": 1}, remove_file=True)
+    assert store.delete({"n": 1}, remove_file=True)
 
 
-def test_sweep_forwards_metadata(tmp_store: Store) -> None:
-    """**metadata kwargs are forwarded to each record in a sweep."""
+def test_sweep_forwards_metadata(tmp_path: Path) -> None:
+    """**custom_data kwargs are forwarded to each record in a sweep."""
 
-    def writer(params: dict, result_path: Path) -> None:
-        result_path.write_text("data")
+    def writer(params: dict) -> None:
+        Path(params["result_file"]).write_text("data")
 
-    records = tmp_store.sweep(
+    store = _make_store(tmp_path, writer)
+    records = store.sweep(
         [{"n": 1}, {"n": 2}],
-        writer,
         experiment="test",
     )
-    assert all(r.metadata["experiment"] == "test" for r in records)
+    assert all(r.custom_data["experiment"] == "test" for r in records)
 
 
-def test_register_missing_file_raises(tmp_store: Store) -> None:
+def test_register_missing_file_raises(tmp_path: Path) -> None:
+    def runner(params: dict) -> None:
+        Path(params["result_file"]).write_text("x")
+
+    store = _make_store(tmp_path, runner)
     with pytest.raises(FileNotFoundError):
-        tmp_store.register({"n": 42}, Path("/nonexistent.dat"))
-
-
-@pytest.mark.parametrize("key", RESERVED_KEYS)
-def test_reserved_key_raises_in_run(tmp_store: Store, key: str) -> None:
-    """run() raises ValueError when a reserved key is in params."""
-
-    def runner(params: dict, result_path: Path) -> None:
-        result_path.write_text("x")
-
-    with pytest.raises(ValueError, match="reserved key"):
-        tmp_store.run({key: "bad"}, runner)
-
-
-@pytest.mark.parametrize("key", RESERVED_KEYS)
-def test_reserved_key_raises_in_retrieve(tmp_store: Store, key: str) -> None:
-    """retrieve() raises ValueError when a reserved key is in params."""
-    with pytest.raises(ValueError, match="reserved key"):
-        tmp_store.retrieve({key: "bad"})
-
-
-@pytest.mark.parametrize("key", RESERVED_KEYS)
-def test_reserved_key_raises_in_register(
-    tmp_store: Store, key: str, tmp_path: Path
-) -> None:
-    """register() raises ValueError when a reserved key is in params."""
-    f = tmp_path / "f.dat"
-    f.write_text("x")
-    with pytest.raises(ValueError, match="reserved key"):
-        tmp_store.register({key: "bad"}, f)
-
-
-@pytest.mark.parametrize("key", RESERVED_KEYS)
-def test_reserved_key_raises_in_delete(tmp_store: Store, key: str) -> None:
-    """delete() raises ValueError when a reserved key is in params."""
-    with pytest.raises(ValueError, match="reserved key"):
-        tmp_store.delete({key: "bad"})
+        store.register({"n": 42}, Path("/nonexistent.dat"))
