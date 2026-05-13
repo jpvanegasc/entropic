@@ -1,10 +1,13 @@
 # entropic
 
-Entropic is a minimal, file-based run cache for Python-driven simulations and scripts.
-By hashing your input parameters, it automatically identifies duplicate runs and skips
-unnecessary computation. It is completely agnostic to your simulation engine,
+Entropic is a minimal run cache for Python-driven simulations and scripts.
+By hashing your input parameters, it automatically identifies duplicate runs and
+skips unnecessary computation. It is completely agnostic to your simulation engine,
 lightweight by design, and built to manage locally run research workflows without
 getting in your way.
+
+Storage is backed by SQLAlchemy: parameters and metadata live in a SQL database
+(SQLite by default), result files live on disk next to it.
 
 ## Install
 
@@ -17,30 +20,47 @@ uv add entropic
 ## Quickstart
 
 ```python
-from entropic import Store
+from pathlib import Path
+import numpy as np
 
-store = Store("./results", "./runs.json")
+from entropic import Store, Base, Mapped
 
-# Define a runner: receives (params, result_path), writes results to result_path
-def my_simulation(params, result_path):
-    import numpy as np
+
+# 1. Define a SQLAlchemy model for your simulation parameters.
+#    The four reserved columns (id, result_file, created_at, custom_data)
+#    come from Base — your columns are the parameters you want to query on.
+class SimResult(Base):
+    __tablename__ = "results"
+
+    n: Mapped[int]
+    steps: Mapped[int]
+    dt: Mapped[float]
+
+
+# 2. Define a runner. It receives a single dict; entropic injects
+#    `params["result_file"]` (the target path) before calling.
+def my_simulation(params: dict) -> None:
     data = np.random.randn(params["n"], params["steps"])
-    np.save(result_path, data)
+    np.save(params["result_file"], data)
 
-# Run or retrieve from cache
-record = store.run_or_retrieve(
-    params={"n": 100, "steps": 5000, "dt": 0.01},
-    runner=my_simulation,
-)
-print(record.result_path)   # ./results/1769854174.763568_a3f8c1d2e4b6f7a8.npy
-print(record.params)         # {"n": 100, "steps": 5000, "dt": 0.01}
-print(record.metadata)       # {"elapsed_seconds": 0.042}
 
-# Second call with same params → instant cache hit, no re-run
-record = store.run_or_retrieve(
-    params={"n": 100, "steps": 5000, "dt": 0.01},
+store = Store(
     runner=my_simulation,
+    result_cls=SimResult,
+    results_dir="./results",
+    db_url="sqlite:///./runs.sqlite3",
+    file_suffix=".npy",
 )
+
+# 3. Run or retrieve from cache
+record = store.run_or_retrieve({"n": 100, "steps": 5000, "dt": 0.01})
+print(record.result_file)         # ./results/a3f8c1d2e4b6f7a8.npy
+print(record.id)                  # a3f8c1d2e4b6f7a8
+print(record.n, record.dt)        # 100  0.01
+print(record.custom_data)         # {"elapsed_seconds": 0.042}
+
+# Second call with same params → instant cache hit, runner not invoked
+same = store.run_or_retrieve({"n": 100, "steps": 5000, "dt": 0.01})
 ```
 
 ## Core API
@@ -49,119 +69,121 @@ record = store.run_or_retrieve(
 
 ```python
 store = Store(
-    results_dir="./results",     # where result files live
-    db_path="./entropic.json",   # TinyDB metadata index
-    file_suffix=".h5",           # extension for auto-generated filenames
-    index=None,                  # custom IndexBackend (default: TinyDB)
+    runner=my_simulation,
+    result_cls=SimResult,
+    results_dir="./results",            # where result files live
+    file_suffix=".h5",                  # extension for auto-generated filenames
+    db_url="sqlite:///./db.sqlite3",    # SQLAlchemy URL
 )
 ```
 
-#### `store.run_or_retrieve(params, runner, **metadata) → RunRecord`
+`runner` is called as `runner(params)`; the Store passes a copy of your params
+with `id` and `result_file` injected. The runner writes its output to
+`params["result_file"]`.
 
-The main workhorse. Returns a cached result if one exists for the given params,
-otherwise calls `runner(params, result_path)` and caches the result.
+`result_cls` must be a `Base` subclass. Its column names must match the keys of
+the params dicts you pass to the Store — those columns are how `list(where=...)`
+filters work.
+
+#### `store.run_or_retrieve(params, **custom_data) → ModelT`
+
+The main workhorse. Returns the cached record if `params` hashes to an existing
+row, otherwise runs the simulation and persists the new row.
 
 ```python
 record = store.run_or_retrieve(
-    params={"n": 50, "method": "rk4"},
-    runner=my_sim,
-    git_sha="abc123",  # optional metadata
+    {"n": 50, "method": "rk4"},
+    git_sha="abc123",   # stored on record.custom_data
 )
 ```
 
-#### `store.run(params, runner, **metadata) → RunRecord`
+#### `store.run(params, **custom_data) → ModelT`
 
-Always runs the simulation, even if a cached result exists. Useful for re-running with
-the same parameters (e.g., stochastic simulations).
+Always runs the simulation and overwrites the cache for that hash.
 
-#### `store.retrieve(params) → RunRecord | None`
+#### `store.retrieve(params) → ModelT | None`
 
-Look up a cached run by exact parameter match. Returns `None` on cache miss.
+Look up a cached run by exact parameter match. Returns `None` on a miss.
 
-#### `store.register(params, result_path, **metadata) → RunRecord`
+#### `store.register(params, result_file, **custom_data) → ModelT`
 
-Manually register an externally-produced result file. Use this when you run simulations
-outside the library and want to index them for later retrieval.
+Index an externally-produced result file. Raises `FileNotFoundError` if
+`result_file` does not exist.
 
 ```python
 store.register(
-    params={"n": 50, "method": "euler"},
-    result_path="./results/my_external_run.h5",
+    {"n": 50, "method": "euler"},
+    result_file="./results/my_external_run.h5",
 )
 ```
 
-#### `store.sweep(params_iter, runner, **metadata) → list[RunRecord]`
+#### `store.sweep(params_iter, **custom_data) → list[ModelT]`
 
-Run or retrieve results for each parameter set in an iterable. Reuses cached results
-where possible.
-
-```python
-records = store.sweep(
-    [{"n": 10, "dt": dt} for dt in [0.01, 0.005, 0.001]],
-    runner=my_simulation,
-)
-```
-
-### `RunRecord`
-
-Frozen dataclass returned by all `Store` methods.
+Run or retrieve results for each parameter set in an iterable. Reuses cached
+results where possible.
 
 ```python
-record.params        # dict — the simulation parameters
-record.result_path   # Path — path to the result file
-record.params_hash   # str — 16-char hex hash of params
-record.created_at    # str — ISO 8601 timestamp
-record.metadata      # dict — user-defined extras (elapsed_seconds auto-added)
+records = store.sweep([{"n": 10, "dt": dt} for dt in [0.01, 0.005, 0.001]])
 ```
+
+#### `store.list(where=None) → list[ModelT]`
+
+Return all records, or those matching an exact column filter
+(`where={"method": "rk4"}`). Filter keys must be column names on `result_cls`.
+
+#### `store.delete(params, remove_file=False) → bool`
+
+Delete a record by exact parameter match. Returns `True` if a row was removed.
+
+### Record fields (from `Base`)
+
+| Field         | Type            | Description                                                    |
+| ------------- | --------------- | -------------------------------------------------------------- |
+| `id`          | `str`           | 16-char hex hash of the parameters (primary key).              |
+| `result_file` | `str`           | Path to the result file on disk.                               |
+| `created_at`  | `datetime`      | UTC timestamp set on insert.                                   |
+| `custom_data` | `dict[str,Any]` | JSON column. `elapsed_seconds` is added automatically on runs. |
+
+Any user-defined columns on the model are populated from the matching keys in
+`params`.
 
 ## How it works
 
-Parameters are stored as **flat fields** in a TinyDB JSON file, plus a deterministic
-SHA-256 hash for fast exact lookups. This gives you both:
+Each run is keyed by a deterministic 16-char SHA-256 hash of its normalized
+params (dict keys sorted, floats rounded to 12 digits, enums replaced by
+`.value`, tuples flattened to lists, everything else `str()`-coerced).
 
-- **O(1) exact match** via `retrieve()` / `run_or_retrieve()` (hash lookup)
-- **Flexible partial queries** via `list(where=...)` (field-by-field TinyDB search)
+When the runner finishes, entropic writes a sidecar JSON next to the result file
+with the params + `custom_data`, then ingests it into the database. The sidecar
+is unlinked on a successful insert. Sidecars left behind imply the result file
+was missing or empty when ingestion ran — they will be re-ingested on the next
+operation that triggers `_ingest_to_db`.
 
-Parameter hashing normalizes values before hashing: dict keys are sorted, floats are
-rounded to 12 digits (avoiding IEEE 754 noise), enums are converted to their `.value`,
-and everything is serialized to canonical JSON.
+## Reserved keys in `params`
 
-## Custom index backends
+The four `Base` columns — `id`, `result_file`, `created_at`, `custom_data` —
+are stripped from `params` before hashing. If you pass an explicit `id`, it
+short-circuits hashing and is used verbatim as the row's primary key.
 
-The default TinyDB backend works well for local workflows. For larger-scale use
-(remote databases, shared teams), implement the `IndexBackend` protocol:
-
-```python
-from entropic.index import IndexBackend
-from entropic.record import RunRecord
-
-class PostgresIndex:
-    def find_by_hash(self, params_hash: str) -> RunRecord | None: ...
-    def find_by_params(self, params: dict) -> list[RunRecord]: ...
-    def insert(self, record: RunRecord) -> None: ...
-    def all(self) -> list[RunRecord]: ...
-    def delete_by_hash(self, params_hash: str) -> bool: ...
-
-store = Store("./results", index=PostgresIndex(conn_string="..."))
-```
+User-defined param keys must match column names on `result_cls`; extra keys will
+fail the SQLAlchemy insert.
 
 ## Runner contract
 
-A runner is any callable with this signature:
-
 ```python
-def runner(params: dict[str, Any], result_path: Path):
-    # 1. Use `params` to configure your simulation
-    # 2. Write results to `result_path` (any format you want)
+def runner(params: dict[str, Any]) -> None:
+    # params["result_file"] is the path to write to
+    # all other keys are your simulation parameters
     ...
 ```
 
-The library generates `result_path` for you (timestamp + hash + suffix). You just write
-to it.
+The library generates `params["result_file"]` (`<results_dir>/<hash><suffix>`)
+before invoking your runner.
 
 ## Logging
 
-entropic uses a `NullHandler` by default (no output). To see what the library is doing:
+entropic uses a `NullHandler` by default (no output). To see what the library
+is doing:
 
 ```python
 import logging

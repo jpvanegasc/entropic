@@ -140,7 +140,7 @@ docs/_build/
 
 # Examples
 examples/results/
-examples/*.json
+examples/*.sqlite3
 
 # MacOS
 **/.DS_Store

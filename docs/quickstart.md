@@ -2,119 +2,149 @@
 
 ## Basic usage
 
-Define a runner — a callable that accepts `(params, result_path)` and writes output to the given path — then hand it to `run_or_retrieve`:
+Define a SQLAlchemy model whose columns mirror the params your simulation takes,
+then a runner that writes its output to `params["result_file"]`. Hand both to a
+`Store`:
 
 ```python
 from pathlib import Path
+
 import numpy as np
-from entropic import Store
 
-store = Store("./results", "./runs.json")
+from entropic import Store, Base, Mapped
 
-def my_sim(params: dict, result_path: Path) -> None:
+
+class SimResult(Base):
+    __tablename__ = "results"
+
+    n: Mapped[int]
+    steps: Mapped[int]
+    dt: Mapped[float]
+
+
+def my_sim(params: dict) -> None:
     data = np.random.randn(params["n"], params["steps"])
-    np.save(result_path, data)
+    np.save(params["result_file"], data)
 
-record = store.run_or_retrieve(
-    params={"n": 100, "steps": 5000, "dt": 0.01},
+
+store = Store(
     runner=my_sim,
+    result_cls=SimResult,
+    results_dir="./results",
+    db_url="sqlite:///./runs.sqlite3",
+    file_suffix=".npy",
 )
 
-data = np.load(record.result_path)
+record = store.run_or_retrieve({"n": 100, "steps": 5000, "dt": 0.01})
+data = np.load(record.result_file)
 ```
 
-The first call runs the simulation. Every subsequent call with the same parameters returns the cached result without re-running.
+The first call runs the simulation. Every subsequent call with the same
+parameters returns the cached row without re-running.
 
 ## The result record
 
-`run_or_retrieve` (and all other methods that produce a result) returns a `RunRecord`:
+Every `Store` method that returns a record returns an instance of your
+`result_cls`. The four reserved columns from `Base` are always present; the
+rest come from your model.
 
 ```python
-record.params         # {"n": 100, "steps": 5000, "dt": 0.01}
-record.result_path    # Path("./results/1769854174.763568_a3f8c1d2e4b6f7a8.npy")
-record.params_hash    # "a3f8c1d2e4b6f7a8"
-record.created_at     # "2025-06-15T10:30:00+00:00"
-record.metadata       # {"elapsed_seconds": 0.042}
+record.id            # "a3f8c1d2e4b6f7a8" — 16-char hash, primary key
+record.result_file   # "./results/a3f8c1d2e4b6f7a8.npy"
+record.created_at    # datetime — UTC, set on insert
+record.custom_data   # {"elapsed_seconds": 0.042}
+record.n             # 100
+record.dt            # 0.01
 ```
 
 ## Retrieving without running
 
-Look up a cached run without triggering execution:
-
 ```python
-record = store.retrieve(params={"n": 100, "steps": 5000, "dt": 0.01})
+record = store.retrieve({"n": 100, "steps": 5000, "dt": 0.01})
 ```
 
-Returns the `RunRecord` on a hit, `None` on a miss.
+Returns the model instance on a hit, `None` on a miss.
 
 ## Forcing a re-run
 
-To always execute the runner regardless of the cache — useful for stochastic simulations where you want multiple independent runs with identical parameters:
+`run` always invokes the runner. Same params hash to the same row, so a forced
+re-run overwrites the existing record (and result file) for that hash:
 
 ```python
-record = store.run(
-    params={"n": 100, "steps": 5000, "dt": 0.01},
-    runner=my_sim,
-)
+record = store.run({"n": 100, "steps": 5000, "dt": 0.01})
 ```
 
 ## Querying runs
 
-List all cached runs:
+List all rows:
 
 ```python
 records = store.list()
 ```
 
-Filter by a partial parameter match — only the provided keys need to match:
+Filter by an exact column match — keys must be column names on `result_cls`:
 
 ```python
 fine_dt_runs = store.list(where={"dt": 0.01})
 ```
 
-This returns every record where `dt == 0.01` regardless of other parameters.
+For richer queries, drop down to SQLAlchemy directly against your model.
 
 ## Deleting runs
 
-Remove a record from the index:
-
 ```python
-store.delete(params={"n": 100, "steps": 5000, "dt": 0.01})
+store.delete({"n": 100, "steps": 5000, "dt": 0.01})
 ```
 
 Pass `remove_file=True` to also delete the result file from disk:
 
 ```python
-store.delete(params={"n": 100, "steps": 5000, "dt": 0.01}, remove_file=True)
+store.delete({"n": 100, "steps": 5000, "dt": 0.01}, remove_file=True)
 ```
 
-Returns `True` if a matching record was found and removed, `False` otherwise.
+Returns `True` if a row was removed, `False` otherwise.
 
 ## Registering external files
 
-If you produced a result file outside entropic and want to index it:
+If a result file was produced outside entropic, index it via `register`:
 
 ```python
 store.register(
-    params={"n": 100, "steps": 5000, "dt": 0.01},
-    result_path="./results/my_existing_run.npy",
+    {"n": 100, "steps": 5000, "dt": 0.01},
+    result_file="./results/my_existing_run.npy",
 )
 ```
 
-The file must already exist. After registration it is retrievable via `store.retrieve()` or `store.list()` like any other run.
+The file must already exist. After registration the row is reachable via
+`retrieve` / `list` like any other run.
 
 ## Parameter sweeps
 
-Run or retrieve results for a batch of parameter sets:
+Run or retrieve results for a batch of parameter sets — cached rows are reused,
+new ones invoke the runner:
 
 ```python
 records = store.sweep(
     [{"n": 100, "steps": 5000, "dt": dt} for dt in [0.01, 0.005, 0.001]],
-    runner=my_sim,
 )
 ```
 
-Cached results are reused — only new parameter combinations trigger the runner.
+## Custom metadata
+
+Any keyword argument to `run`, `run_or_retrieve`, `sweep`, or `register` lands
+on the row's `custom_data` JSON column:
+
+```python
+record = store.run_or_retrieve(
+    {"n": 100, "steps": 5000, "dt": 0.01},
+    git_sha="abc123",
+    note="initial sweep",
+)
+record.custom_data
+# {"elapsed_seconds": 0.042, "git_sha": "abc123", "note": "initial sweep"}
+```
+
+`elapsed_seconds` is added automatically on actual runs.
 
 ## Logging
 
@@ -126,4 +156,4 @@ logging.getLogger("entropic").addHandler(logging.StreamHandler())
 logging.getLogger("entropic").setLevel(logging.INFO)
 ```
 
-This logs cache hits, run completions, and file operations.
+This logs cache hits, run completions, ingestion, and file operations.
