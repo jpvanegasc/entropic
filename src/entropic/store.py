@@ -330,16 +330,19 @@ class Store(Generic[ModelT]):
         """
         hash = self._hash_params(params)
         with self._get_session(self._db_url) as db:
-            result = db.execute(
-                delete(self._result_cls).where(self._result_cls.id == hash)
+            existing = db.scalar(
+                select(self._result_cls).where(self._result_cls.id == hash)
             )
+            if existing is None:
+                return False
+            file_path = Path(existing.result_file) if remove_file else None
+            db.execute(delete(self._result_cls).where(self._result_cls.id == hash))
             db.commit()
-            deleted = result.rowcount > 0
-        result_file = Path(self.results_dir) / f"{hash}{self.file_suffix}"
-        if remove_file and result_file.exists():
+
+        if file_path is not None and file_path.exists():
             try:
-                result_file.unlink(missing_ok=True)
-                logger.info("Deleted result file: %s", result_file)
+                file_path.unlink(missing_ok=True)
+                logger.info("Deleted result file: %s", file_path)
             except OSError as e:
                 logger.warning("Could not delete result file: %s", e)
-        return deleted  # type:ignore
+        return True
