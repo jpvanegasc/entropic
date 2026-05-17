@@ -129,18 +129,6 @@ def test_full_workflow(tmp_path: Path) -> None:
     assert r3.custom_data["source"] == "external"
     assert store.retrieve(_params_b()) is not None
 
-    # 6. list — all records and filtered
-    all_records = store.list()
-    assert len(all_records) == 2  # r1/r2 share an id; r3 is the registered one
-
-    filtered = store.list(where={"r": 0.5})
-    assert len(filtered) == 1
-    assert filtered[0].id == r1_id
-
-    filtered_b = store.list(where={"r": 1.0})
-    assert len(filtered_b) == 1
-    assert filtered_b[0].id == r3.id
-
     # 7. sweep — run over a param grid, reuses cache
     sweep_params = [{**_params_a(), "x0": x0} for x0 in [2.0, 5.0, 10.0]]
     # x0=2.0 is already cached
@@ -155,7 +143,7 @@ def test_full_workflow(tmp_path: Path) -> None:
     assert external_path.exists()  # file kept
 
     # delete — record + file
-    r_to_delete = store.list(where={"x0": 5.0})[0]
+    r_to_delete = store.retrieve({**_params_a(), "x0": 5.0})
     path_to_delete = Path(r_to_delete.result_file)
     assert path_to_delete.exists()
     assert store.delete({**_params_a(), "x0": 5.0}, remove_file=True)

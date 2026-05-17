@@ -74,22 +74,6 @@ re-run overwrites the existing record (and result file) for that hash:
 record = store.run({"n": 100, "steps": 5000, "dt": 0.01})
 ```
 
-## Querying runs
-
-List all rows:
-
-```python
-records = store.list()
-```
-
-Filter by an exact column match — keys must be column names on `result_cls`:
-
-```python
-fine_dt_runs = store.list(where={"dt": 0.01})
-```
-
-For richer queries, drop down to SQLAlchemy directly against your model.
-
 ## Deleting runs
 
 ```python
@@ -116,7 +100,7 @@ store.register(
 ```
 
 The file must already exist. After registration the row is reachable via
-`retrieve` / `list` like any other run.
+`retrieve` like any other run.
 
 ## Parameter sweeps
 

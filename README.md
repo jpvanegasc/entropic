@@ -126,11 +126,6 @@ results where possible.
 records = store.sweep([{"n": 10, "dt": dt} for dt in [0.01, 0.005, 0.001]])
 ```
 
-#### `store.list(where=None) → list[ModelT]`
-
-Return all records, or those matching an exact column filter
-(`where={"method": "rk4"}`). Filter keys must be column names on `result_cls`.
-
 #### `store.delete(params, remove_file=False) → bool`
 
 Delete a record by exact parameter match. Returns `True` if a row was removed.

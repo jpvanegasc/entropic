@@ -47,13 +47,6 @@ class Store(Generic[ModelT]):
 
         record = store.run_or_retrieve({"n": 100, "dt": 0.01, "method": "rk4"})
         # record.result_file → "./results/a3f8c1d2e4b6f7a8.h5"
-
-        store.register(
-            params={"n": 100, "dt": 0.01, "method": "rk4"},
-            result_file="./results/my_run.h5",
-        )
-
-        all_rk4 = store.list(where={"method": "rk4"})
     """
 
     def __init__(
@@ -300,23 +293,6 @@ class Store(Generic[ModelT]):
             db.refresh(record)
         logger.info("Registered %s → %s", hash, result_file)
         return record
-
-    def list(self, where: dict[str, Any] | None = None) -> list[ModelT]:
-        """List records, optionally filtered by exact column match.
-
-        Args:
-            where: If provided, only return records where all specified
-                column-value pairs match (passed to SQLAlchemy
-                ``filter_by``). Keys must be column names on ``result_cls``.
-
-        Returns:
-            List of matching model instances.
-        """
-        with self._get_session(self._db_url) as db:
-            stmt = select(self._result_cls)
-            if where is not None:
-                stmt = stmt.filter_by(**where)
-            return list(db.execute(stmt).scalars())
 
     def delete(self, params: dict[str, Any], remove_file: bool = False) -> bool:
         """Delete a record by exact parameter match.

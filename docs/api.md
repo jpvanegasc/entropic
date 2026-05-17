@@ -85,19 +85,6 @@ def register(
 Index an externally-produced result file. Raises `FileNotFoundError` if
 `result_file` does not exist.
 
-#### `list`
-
-```python
-def list(self, where: dict[str, Any] | None = None) -> list[ModelT]
-```
-
-Return all rows, or only those matching `where` (passed verbatim to
-`Query.filter_by`). Keys must be column names on `result_cls`.
-
-For richer queries (ranges, JSON path lookups into `custom_data`, joins, etc.)
-use SQLAlchemy directly against your model — entropic deliberately does not try
-to reinvent that surface.
-
 #### `sweep`
 
 ```python

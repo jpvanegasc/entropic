@@ -37,7 +37,6 @@ def test_runner_exception_leaves_no_record(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="simulation exploded"):
         store.run({"n": 5})
 
-    assert store.list() == []
     assert store.retrieve({"n": 5}) is None
 
 
