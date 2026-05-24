@@ -1,4 +1,4 @@
-"""Lotka-Volterra (predator-prey) example for entropic v2.
+"""Lotka-Volterra (predator-prey) example for entropic.
 
 Demonstrates every public Store method:
   run_or_retrieve, run, retrieve, register, list, delete
@@ -14,26 +14,34 @@ from pathlib import Path
 
 import numpy as np
 
-from entropic import RunRecord, Store
+from entropic import Store, Base, Mapped
+
 
 # ---------------------------------------------------------------------------
-# Store setup
-# ---------------------------------------------------------------------------
-
-EXAMPLES_DIR = Path(__file__).parent
-store = Store(
-    results_dir=EXAMPLES_DIR / "results",
-    db_path=EXAMPLES_DIR / "entropic.json",
-    file_suffix=".npz",
-)
-
-# ---------------------------------------------------------------------------
-# Runner definition
+# Schema
 # ---------------------------------------------------------------------------
 
 
-def euler_runner(params: dict, path: Path) -> None:
-    """Euler integrator for Lotka-Volterra. Writes prey/predator/time to path."""
+class LotkaVolterraResult(Base):
+    __tablename__ = "lotka_volterra_results"
+
+    alpha: Mapped[float]
+    beta: Mapped[float]
+    gamma: Mapped[float]
+    delta: Mapped[float]
+    x0: Mapped[float]
+    y0: Mapped[float]
+    dt: Mapped[float]
+    steps: Mapped[int]
+
+
+# ---------------------------------------------------------------------------
+# Runner: Euler integrator for Lotka-Volterra
+# ---------------------------------------------------------------------------
+
+
+def euler_runner(params: dict) -> None:
+    """Euler integrator. Writes prey/predator/time arrays to params['result_file']."""
     x = float(params["x0"])
     y = float(params["y0"])
     dt = float(params["dt"])
@@ -56,7 +64,22 @@ def euler_runner(params: dict, path: Path) -> None:
         x += dx * dt
         y += dy * dt
 
-    np.savez(path, prey=prey, predator=predator, time=t)
+    np.savez(params["result_file"], prey=prey, predator=predator, time=t)
+
+
+# ---------------------------------------------------------------------------
+# Store setup
+# ---------------------------------------------------------------------------
+
+
+EXAMPLES_DIR = Path(__file__).parent
+store: Store[LotkaVolterraResult] = Store(
+    runner=euler_runner,
+    result_cls=LotkaVolterraResult,
+    results_dir=EXAMPLES_DIR / "results",
+    db_url=f"sqlite:///{EXAMPLES_DIR / 'entropic.sqlite3'}",
+    file_suffix=".npz",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -74,16 +97,16 @@ params_classic = {
     "dt": 0.01,
     "steps": 5000,
 }
-record1: RunRecord = store.run_or_retrieve(params_classic, euler_runner, tag="classic")
-print(f"  hash:       {record1.params_hash}")
-print(f"  result:     {record1.result_path}")
-print(f"  created_at: {record1.created_at}")
-print(f"  metadata:   {record1.metadata}")
+record1 = store.run_or_retrieve(params_classic, tag="classic")
+print(f"  id:          {record1.id}")
+print(f"  result_file: {record1.result_file}")
+print(f"  created_at:  {record1.created_at}")
+print(f"  custom_data: {record1.custom_data}")
 
 print("\n=== run_or_retrieve (cache hit) ===")
-record1b: RunRecord = store.run_or_retrieve(params_classic, euler_runner)
-print(f"  hash:       {record1b.params_hash}")
-print(f"  same path:  {record1b.result_path == record1.result_path}")
+record1b = store.run_or_retrieve(params_classic)
+print(f"  id:        {record1b.id}")
+print(f"  same path: {record1b.result_file == record1.result_file}")
 
 # ---------------------------------------------------------------------------
 # Section 2: retrieve — pure cache lookup
@@ -92,28 +115,17 @@ print(f"  same path:  {record1b.result_path == record1.result_path}")
 print("\n=== retrieve (hit) ===")
 hit = store.retrieve(params_classic)
 assert hit is not None
-print(f"  found:  {hit.params_hash}")
+print(f"  found:  {hit.id}")
 
 print("\n=== retrieve (miss) ===")
-miss = store.retrieve(
-    {
-        "alpha": 99.0,
-        "beta": 0.1,
-        "gamma": 0.075,
-        "delta": 1.5,
-        "x0": 10.0,
-        "y0": 5.0,
-        "dt": 0.01,
-        "steps": 5000,
-    }
-)
+miss = store.retrieve({**params_classic, "alpha": 99.0})
 print(f"  result: {miss}")  # None
 
 # ---------------------------------------------------------------------------
-# Section 3: run — always creates a new record
+# Section 3: run — forced re-run, overwrites the row at the same hash
 # ---------------------------------------------------------------------------
 
-print("\n=== run (forced, new record even for same params) ===")
+print("\n=== run (forced) ===")
 params_fast = {
     "alpha": 2.0,
     "beta": 0.2,
@@ -124,14 +136,15 @@ params_fast = {
     "dt": 0.005,
     "steps": 2000,
 }
-record2: RunRecord = store.run(params_fast, euler_runner, note="forced re-run demo")
-print(f"  hash:    {record2.params_hash}")
-print(f"  elapsed: {record2.metadata.get('elapsed_seconds')}s")
+record2 = store.run(params_fast, note="forced re-run demo")
+print(f"  id:      {record2.id}")
+print(f"  elapsed: {record2.custom_data.get('elapsed_seconds')}s")
 
-# Run again with same params — run() always executes, yielding a second record
-record2b: RunRecord = store.run(params_fast, euler_runner)
-print(f"  second forced run hash: {record2b.params_hash}")
-print(f"  same path? {record2b.result_path == record2.result_path}")  # False: new path
+# Re-run with same params — same hash → same row, overwritten
+record2b = store.run(params_fast)
+print(f"  re-run id:   {record2b.id}")
+print(f"  same row:    {record2b.id == record2.id}")
+print(f"  same path:   {record2b.result_file == record2.result_file}")
 
 # ---------------------------------------------------------------------------
 # Section 4: register — manually index an external result file
@@ -151,6 +164,7 @@ params_external = {
 
 # Produce the result file manually (simulating an externally-run simulation)
 external_path = EXAMPLES_DIR / "results" / "external_run.npz"
+external_path.parent.mkdir(parents=True, exist_ok=True)
 x, y = float(params_external["x0"]), float(params_external["y0"])
 prey_arr = np.empty(params_external["steps"])
 pred_arr = np.empty(params_external["steps"])
@@ -165,43 +179,43 @@ for i in range(params_external["steps"]):
     y += dy * params_external["dt"]
 np.savez(external_path, prey=prey_arr, predator=pred_arr, time=t_arr)
 
-record3: RunRecord = store.register(params_external, external_path, source="external")
-print(f"  registered: {record3.params_hash}")
-print(f"  path:       {record3.result_path}")
+record3 = store.register(params_external, external_path, source="external")
+print(f"  registered:  {record3.id}")
+print(f"  result_file: {record3.result_file}")
 
 # ---------------------------------------------------------------------------
-# Section 5: list — all records and filtered query
+# Section 5: list — all rows and filtered query
 # ---------------------------------------------------------------------------
 
-print("\n=== list() — all records ===")
+print("\n=== list() — all rows ===")
 all_records = store.list()
-print(f"  total records: {len(all_records)}")
+print(f"  total rows: {len(all_records)}")
 for r in all_records:
-    print(f"  [{r.params_hash}] alpha={r.params.get('alpha')}  {r.result_path.name}")
+    print(f"  [{r.id}] alpha={r.alpha}  {Path(r.result_file).name}")
 
 print("\n=== list(where=...) — filter by alpha=1.0 ===")
 filtered = store.list(where={"alpha": 1.0})
-print(f"  matching records: {len(filtered)}")
+print(f"  matching rows: {len(filtered)}")
 for r in filtered:
-    print(f"  [{r.params_hash}] {r.result_path.name}")
+    print(f"  [{r.id}] {Path(r.result_file).name}")
 
 # ---------------------------------------------------------------------------
-# Section 6: delete — remove record (with and without file)
+# Section 6: delete — remove row (with and without file)
 # ---------------------------------------------------------------------------
 
-print("\n=== delete (record only, keep file) ===")
+print("\n=== delete (row only, keep file) ===")
 deleted = store.delete(params_fast, remove_file=False)
-print(f"  deleted first record: {deleted}")
-# record2b used same params — delete that one too (removes the file this time)
+print(f"  deleted: {deleted}")
 
-print("\n=== delete (record + file) ===")
-deleted2 = store.delete(params_fast, remove_file=True)
-print(f"  deleted second record + file: {deleted2}")
+print("\n=== delete (row + file) ===")
+deleted2 = store.delete(params_external, remove_file=True)
+print(f"  deleted: {deleted2}")
+print(f"  external file still on disk? {external_path.exists()}")
 
 # ---------------------------------------------------------------------------
 # Teardown note
 # ---------------------------------------------------------------------------
 
 remaining = store.list()
-print(f"\nFinal record count: {len(remaining)}")
+print(f"\nFinal row count: {len(remaining)}")
 print("Done. Results in:", EXAMPLES_DIR / "results")

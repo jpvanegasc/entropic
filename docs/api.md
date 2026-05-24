@@ -3,24 +3,30 @@
 ## `Store`
 
 ```python
-class Store:
+class Store(Generic[ModelT]):
     def __init__(
         self,
+        runner: Callable[[dict[str, Any]], None],
+        result_cls: type[ModelT],
         results_dir: str | Path = "./results",
-        db_path: str | Path = "./entropic.json",
         file_suffix: str = ".h5",
-        index: IndexBackend | None = None,
+        db_url: str = "sqlite:///db.sqlite3",
     ) -> None
 ```
 
-The main entry point. Creates `results_dir` if it does not exist.
+The main entry point. Creates `results_dir` if it does not exist and runs
+`metadata.create_all` on the engine derived from `db_url`.
 
-| Parameter | Description |
-|-----------|-------------|
-| `results_dir` | Directory where result files are stored and auto-generated paths are placed. |
-| `db_path` | Path to the TinyDB JSON index file. Ignored if `index` is provided. |
-| `file_suffix` | Extension appended to auto-generated result filenames (e.g. `".h5"`, `".npy"`). |
-| `index` | Custom `IndexBackend` instance. Pass this to use a non-TinyDB backend. |
+| Parameter     | Description                                                                                    |
+| ------------- | ---------------------------------------------------------------------------------------------- |
+| `runner`      | Callable invoked as `runner(params)`. The Store injects `params["result_file"]` before calling. |
+| `result_cls`  | User-defined SQLAlchemy model subclassing `entropic.Base`. Columns must mirror `params` keys.   |
+| `results_dir` | Directory where result files (and ingest sidecars) live. Created if missing.                    |
+| `file_suffix` | Extension appended to auto-generated result filenames (e.g. `".h5"`, `".npy"`, `".csv"`).       |
+| `db_url`      | SQLAlchemy URL for the backing database. SQLite by default; any dialect SQLAlchemy supports.    |
+
+`Store` is generic in `ModelT`; methods that return a record are typed as
+`ModelT` so your editor sees the user-defined columns.
 
 ### Methods
 
@@ -30,16 +36,13 @@ The main entry point. Creates `results_dir` if it does not exist.
 def run_or_retrieve(
     self,
     params: dict[str, Any],
-    runner: Runner,
-    **metadata: Any,
-) -> RunRecord
+    **custom_data: Any,
+) -> ModelT
 ```
 
-The main workhorse. Checks the cache first; runs the simulation only on a miss.
-
-Returns the cached `RunRecord` if `params` hash matches an existing record. Otherwise calls `runner(params, generated_path)`, stores the result, and returns the new `RunRecord`.
-
-Extra keyword arguments are stored as metadata on the record.
+Returns the cached row if `params` hashes to an existing primary key. Otherwise
+calls `run` and persists the new row. `custom_data` is forwarded to the runner
+and stored on the row's `custom_data` column when a run actually happens.
 
 #### `run`
 
@@ -47,22 +50,26 @@ Extra keyword arguments are stored as metadata on the record.
 def run(
     self,
     params: dict[str, Any],
-    runner: Runner,
-    **metadata: Any,
-) -> RunRecord
+    **custom_data: Any,
+) -> ModelT
 ```
 
-Always executes the runner, even if a cached record exists. Use this for stochastic simulations where you want multiple independent runs with identical parameters.
+Always executes the runner and persists. Same params hash to the same primary
+key, so a re-run overwrites the existing row (and the file at the same path).
 
-`elapsed_seconds` is automatically added to metadata.
+`elapsed_seconds` is automatically added to `custom_data`.
 
 #### `retrieve`
 
 ```python
-def retrieve(self, params: dict[str, Any]) -> RunRecord | None
+def retrieve(self, params: dict[str, Any]) -> ModelT | None
 ```
 
-Look up a cached record by exact parameter match. Returns `None` on a miss.
+Look up a row by exact parameter match. Returns `None` on a miss.
+
+If `params` contains an explicit `id` it is used verbatim and hashing is
+skipped; otherwise the reserved keys (`result_file`, `created_at`, `custom_data`)
+are stripped from a copy and the rest is hashed.
 
 #### `register`
 
@@ -70,22 +77,13 @@ Look up a cached record by exact parameter match. Returns `None` on a miss.
 def register(
     self,
     params: dict[str, Any],
-    result_path: str | Path,
-    **metadata: Any,
-) -> RunRecord
+    result_file: str | Path,
+    **custom_data: Any,
+) -> ModelT
 ```
 
-Index an externally-produced result file. Raises `FileNotFoundError` if `result_path` does not exist.
-
-#### `list`
-
-```python
-def list(self, where: dict[str, Any] | None = None) -> list[RunRecord]
-```
-
-Return all records, or only those matching a partial parameter filter.
-
-`where={"method": "rk4"}` returns every record where `method == "rk4"` regardless of other parameters.
+Index an externally-produced result file. Raises `FileNotFoundError` if
+`result_file` does not exist.
 
 #### `sweep`
 
@@ -93,14 +91,12 @@ Return all records, or only those matching a partial parameter filter.
 def sweep(
     self,
     params_iter: Iterable[dict[str, Any]],
-    runner: Runner,
-    **metadata: Any,
-) -> list[RunRecord]
+    **custom_data: Any,
+) -> list[ModelT]
 ```
 
-Run or retrieve results for each parameter set in the iterable. Returns a list of `RunRecord` objects in the same order as the input. Reuses cached results where possible — only calls the runner for parameter sets not already in the index.
-
-Extra keyword arguments are stored as metadata on each new record.
+Run or retrieve results for each parameter set. Returns the rows in input
+order; cached entries are reused, only misses invoke the runner.
 
 #### `delete`
 
@@ -108,103 +104,50 @@ Extra keyword arguments are stored as metadata on each new record.
 def delete(self, params: dict[str, Any], remove_file: bool = False) -> bool
 ```
 
-Delete a record by exact parameter match. If `remove_file=True`, also unlinks the result file. Returns `True` if a record was found and removed.
+Delete a row by exact parameter match. If `remove_file=True`, also unlinks
+the result file. Returns `True` if a row was removed.
 
-### Reserved parameter keys
-
-The following keys are used internally and must not appear in your `params` dict:
-
-- `params_hash`
-- `result_path`
-- `created_at`
-- `metadata`
-
-Passing any of these as a param key raises `ValueError` with a message listing the conflicting key(s). This applies to all `Store` methods that accept a `params` argument (`run`, `run_or_retrieve`, `retrieve`, `sweep`, `register`, `delete`).
-
-## `RunRecord`
+## `Base` — record schema
 
 ```python
-@dataclass(frozen=True)
-class RunRecord:
-    params: dict[str, Any]
-    result_path: Path
-    params_hash: str
-    created_at: str
-    metadata: dict[str, Any]
+from entropic import Base, Mapped, mapped_column
+
+class SimResult(Base):
+    __tablename__ = "results"
+
+    # your columns — must match keys in your params dicts
+    n: Mapped[int]
+    dt: Mapped[float]
 ```
 
-Immutable record of a completed run.
+`Base` is a SQLAlchemy `DeclarativeBase` subclass that defines four reserved
+columns:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `params` | `dict[str, Any]` | The simulation parameters. |
-| `result_path` | `Path` | Path to the result file on disk. |
-| `params_hash` | `str` | 16-character hex hash of the parameters. |
-| `created_at` | `str` | ISO 8601 UTC timestamp. |
-| `metadata` | `dict[str, Any]` | Optional user-defined key-value pairs (e.g. `elapsed_seconds`, git SHA). |
+| Column        | Type                | Description                                                            |
+| ------------- | ------------------- | ---------------------------------------------------------------------- |
+| `id`          | `str` (PK)          | 16-character hex hash of params.                                       |
+| `result_file` | `str`               | Path to the result file on disk.                                       |
+| `created_at`  | `datetime`          | UTC timestamp, default `datetime.utcnow` at insert.                    |
+| `custom_data` | `dict[str, Any]`    | Mutable JSON column. Always non-null; defaults to `{}`.                |
 
-### `to_dict() -> dict[str, Any]`
+The four reserved column names cannot be redefined as user columns.
 
-Serialize to a flat dict. Params are merged at the top level alongside the reserved fields.
-
-### `from_dict(data: dict[str, Any]) -> RunRecord`  *(classmethod)*
-
-Reconstruct from a stored flat dict. Reserved keys are extracted; everything else becomes `params`.
+`Base` also provides `apply_patch(data)` and `_apply_custom_data_patch(patch)`
+for partial updates: a `None` value on `custom_data` keys removes them, an
+empty dict clears the column, otherwise keys are merged.
 
 ## Runner contract
 
-A runner is any callable with this signature:
-
 ```python
-Runner = Callable[[dict[str, Any], Path], None]
-```
+Runner = Callable[[dict[str, Any]], None]
 
-The library generates the result path and passes it to the runner. The runner is responsible only for writing output to that path. entropic is format-agnostic — HDF5, NumPy, Parquet, CSV, anything works.
-
-```python
-def my_runner(params: dict, result_path: Path) -> None:
-    # compute something using params
-    # write results to result_path
+def my_runner(params: dict[str, Any]) -> None:
+    # params["result_file"] is the path to write to (auto-injected by the Store)
+    # everything else is your simulation parameters
     ...
 ```
 
-## Custom index backends
-
-Any class implementing the `IndexBackend` protocol can be passed as the `index` argument to `Store`:
-
-```python
-class IndexBackend(Protocol):
-    def find_by_hash(self, params_hash: str) -> RunRecord | None: ...
-    def find_by_params(self, params: dict[str, Any]) -> list[RunRecord]: ...
-    def insert(self, record: RunRecord) -> None: ...
-    def all(self) -> list[RunRecord]: ...
-    def delete_by_hash(self, params_hash: str) -> bool: ...
-```
-
-Minimal example (in-memory, non-persistent):
-
-```python
-class MemoryIndex:
-    def __init__(self) -> None:
-        self._records: dict[str, RunRecord] = {}
-
-    def find_by_hash(self, params_hash: str) -> RunRecord | None:
-        return self._records.get(params_hash)
-
-    def find_by_params(self, params: dict) -> list[RunRecord]:
-        return [r for r in self._records.values() if all(r.params.get(k) == v for k, v in params.items())]
-
-    def insert(self, record: RunRecord) -> None:
-        self._records[record.params_hash] = record
-
-    def all(self) -> list[RunRecord]:
-        return list(self._records.values())
-
-    def delete_by_hash(self, params_hash: str) -> bool:
-        return self._records.pop(params_hash, None) is not None
-
-store = Store(index=MemoryIndex())
-```
+entropic is format-agnostic — HDF5, NumPy, Parquet, CSV, anything works.
 
 ## Parameter hashing
 
@@ -213,9 +156,20 @@ Parameters are normalized before hashing to ensure stability across Python runs:
 - **Dict keys** are sorted recursively.
 - **Floats** are rounded to 12 decimal digits (suppresses IEEE 754 noise).
 - **Enums** are replaced by their `.value`.
-- **Lists and tuples** preserve order; each element is normalized.
+- **Lists and tuples** preserve order; tuples become lists; each element is normalized.
 - **Everything else** falls back to `str()`.
 
-The normalized structure is serialized to compact JSON and hashed with SHA-256. The hash is the first 16 hex characters (64 bits).
+The normalized structure is serialized to compact JSON and hashed with SHA-256.
+The first 16 hex characters (64 bits) are used as the row's primary key.
 
-Two calls with `{"dt": 0.1, "n": 100}` and `{"n": 100, "dt": 0.1}` produce the same hash.
+`{"dt": 0.1, "n": 100}` and `{"n": 100, "dt": 0.1}` produce the same hash.
+
+## Reserved keys in `params`
+
+`id`, `result_file`, `created_at`, and `custom_data` are stripped from a copy
+of `params` before hashing (so passing them is harmless — they don't pollute
+the hash). An explicit `id` short-circuits hashing and is used verbatim as the
+primary key.
+
+User-defined params keys must match column names on `result_cls`; extra keys
+will fail the SQLAlchemy insert.

@@ -1,210 +1,267 @@
 """Store — the main entry point for managing simulation runs."""
 
-from collections.abc import Iterable, Callable, Generator, Iterator
-from datetime import datetime, timezone
+from collections.abc import Iterable, Callable
 from pathlib import Path
 from time import time
-from typing import Any
+from typing import Any, TypeVar, Generic
+import json
 
-from entropic.hashing import hash_params
-from entropic.index import IndexBackend, TinyDBIndex
+from sqlalchemy import NullPool, create_engine, delete, insert, select, update
+from sqlalchemy.orm import Session
+
+from entropic.hashing import hash_dict
 from entropic.logging import logger
-from entropic.record import RESERVED_KEYS, RunRecord
+from entropic.db import Base
 
-Runner = Callable[[dict[str, Any], Path], None]
-MapFunction = Callable[[RunRecord], Any]
+Runner = Callable[[dict[str, Any]], None]
+
+ModelT = TypeVar("ModelT", bound=Base)
 
 
-class Store:
+class Store(Generic[ModelT]):
     """Simulation-agnostic run cache.
 
     Manages the mapping: parameters → result file.
 
     Usage::
 
-        store = Store("./results", "./runs.json")
+        from entropic import Store, Base, Mapped
 
-        # Callable-based: run or retrieve
-        def my_sim(params, result_path):
-            # ... write results to result_path ...
-            pass
+        class SimResult(Base):
+            __tablename__ = "results"
+            n: Mapped[int]
+            dt: Mapped[float]
+            method: Mapped[str]
 
-        record = store.run_or_retrieve(
-            params={"n": 100, "dt": 0.01, "method": "rk4"},
+        def my_sim(params: dict) -> None:
+            # params["result_file"] is the path to write to
+            with open(params["result_file"], "w") as f:
+                ...
+
+        store = Store(
             runner=my_sim,
-        )
-        # record.result_path → Path("./results/a3f8c1d2e4b6f7a8.h5")
-
-        # Manual registration
-        store.register(
-            params={"n": 100, "dt": 0.01, "method": "rk4"},
-            result_path="./results/my_run.h5",
+            result_cls=SimResult,
+            results_dir="./results",
+            db_url="sqlite:///./runs.sqlite3",
         )
 
-        # Query
-        all_rk4 = store.list(where={"method": "rk4"})
+        record = store.run_or_retrieve({"n": 100, "dt": 0.01, "method": "rk4"})
+        # record.result_file → "./results/a3f8c1d2e4b6f7a8.h5"
     """
 
     def __init__(
         self,
+        runner: Runner,
+        result_cls: type[ModelT],
         results_dir: str | Path = "./results",
-        db_path: str | Path = "./entropic.json",
         file_suffix: str = ".h5",
-        index: IndexBackend | None = None,
+        db_url: str = "sqlite:///db.sqlite3",
     ) -> None:
         """Initialize a Store.
 
         Args:
+            runner: Callable invoked as ``runner(params)`` to produce a result file.
+                The Store injects ``params["result_file"]`` (the target path) before
+                the call; the runner is responsible for writing that file.
+            result_cls: User-defined SQLAlchemy model subclassing ``entropic.Base``.
+                Its column names must match the keys of the ``params`` dicts passed
+                to the Store (the four reserved columns ``id``, ``result_file``,
+                ``created_at``, ``custom_data`` come from ``Base``).
             results_dir: Directory where result files are stored/created.
-            db_path: Path to the index file (TinyDB JSON by default).
             file_suffix: Extension for auto-generated result filenames.
-            index: Custom index backend. If None, uses TinyDB at db_path.
+            db_url: SQLAlchemy URL for the backing database.
         """
         self.results_dir = Path(results_dir)
         self.results_dir.mkdir(parents=True, exist_ok=True)
         self.file_suffix = file_suffix
-        self._index: IndexBackend = index or TinyDBIndex(db_path)
+        self._result_cls: type[ModelT] = result_cls
+        self._runner = runner
+        self._db_url = db_url
 
-    def _validate_params(self, params: dict[str, Any]) -> None:
-        conflicts = RESERVED_KEYS & params.keys()
-        if conflicts:
-            raise ValueError(
-                f"params contains reserved key(s): {sorted(conflicts)}. "
-                f"Reserved keys are: {sorted(RESERVED_KEYS)}."
+        engine = create_engine(db_url, poolclass=NullPool)
+        self._result_cls.metadata.create_all(engine)
+
+    def _hash_params(self, params: dict[str, Any]) -> str:
+        """Compute the hash for a params dict without mutating the caller's copy.
+
+        If ``params["id"]`` is present it is used verbatim; otherwise the
+        reserved keys (see ``entropic.db.Base``) are stripped from a copy
+        and the remainder is hashed.
+        """
+        if "id" in params:
+            return str(params["id"])
+        hashable = {
+            k: v
+            for k, v in params.items()
+            if k not in ("result_file", "created_at", "custom_data")
+        }
+        return hash_dict(hashable)
+
+    @staticmethod
+    def _get_session(db_url: str) -> Session:
+        engine = create_engine(db_url, poolclass=NullPool)
+        return Session(engine)
+
+    def _run(self, params: dict[str, Any], **custom_data: Any) -> str:
+        hash = self._hash_params(params)
+        result_file = self._generate_result_path(hash)
+
+        runner_params = {**params, "id": hash, "result_file": str(result_file)}
+
+        start = time()
+        self._runner(runner_params)
+        elapsed = time() - start
+
+        custom_data.setdefault("elapsed_seconds", round(elapsed, 4))
+        logger.info("Run completed in %.3fs → %s", elapsed, result_file)
+
+        with open(self.results_dir / f"{hash}.json", "w+") as f:
+            payload = {**runner_params, "custom_data": custom_data}
+            f.write(json.dumps(payload))
+
+        return hash
+
+    def _ingest_to_db(self, *results_hash: Path | str, overwrite: bool = False) -> None:
+        if not results_hash:
+            results = tuple(Path(self.results_dir).glob("*.json"))
+        else:
+            results = tuple(
+                Path(self.results_dir) / f"{hash}.json" for hash in results_hash
             )
 
-    def retrieve(self, params: dict[str, Any]) -> RunRecord | None:
+        with self._get_session(self._db_url) as db:
+            for r in results:
+                with open(r) as f:
+                    data = json.load(f)
+                Path(r).unlink()
+
+                filepath = Path(data["result_file"])
+                if not filepath.exists() or filepath.stat().st_size == 0:
+                    logger.warning(
+                        "File for %s missing or broken. filepath=%s",
+                        data["id"],
+                        filepath,
+                    )
+                    continue
+
+                existing = db.scalar(
+                    select(self._result_cls).where(self._result_cls.id == data["id"])
+                )
+
+                if existing is not None and not overwrite:
+                    logger.info("Result for %s already computed, ignoring", data["id"])
+                elif existing is not None and overwrite:
+                    logger.info(
+                        "Result for %s already computed, overwriting cache", data["id"]
+                    )
+                    db.execute(
+                        update(self._result_cls)
+                        .where(self._result_cls.id == data["id"])
+                        .values(**data)
+                    )
+                else:
+                    db.execute(insert(self._result_cls).values(**data))
+            db.commit()
+
+    def _generate_result_path(self, params_hash: str) -> Path:
+        """Generate a unique result file path."""
+        return self.results_dir / f"{params_hash}{self.file_suffix}"
+
+    # Public API
+    # ==========
+
+    def retrieve(self, params: dict[str, Any]) -> ModelT | None:
         """Look up a cached run by exact parameter match.
 
         Args:
-            params: The simulation parameters to look up.
+            params: The simulation parameters to look up. Reserved keys
+                (``result_file``, ``created_at``, ``custom_data``) are
+                ignored; an explicit ``id`` short-circuits hashing.
 
         Returns:
-            RunRecord if found, None otherwise.
-
-        Raises:
-            ValueError: If params contains a reserved key.
+            The model instance if found, ``None`` otherwise.
         """
-        self._validate_params(params)
-        h = hash_params(params)
-        record = self._index.find_by_hash(h)
+        h = self._hash_params(params)
+        with self._get_session(self._db_url) as db:
+            record = db.execute(
+                select(self._result_cls).where(self._result_cls.id == h)
+            ).scalar_one_or_none()
         if record is not None:
             logger.info("Cache hit for hash %s", h)
-        return record
+        return record  # type:ignore
 
     def run(
         self,
         params: dict[str, Any],
-        runner: Runner,
-        **metadata: Any,
-    ) -> RunRecord:
-        """Always run the simulation (even if cached) and register the result.
+        **custom_data: Any,
+    ) -> ModelT:
+        """Always run the simulation (even if cached) and persist the result.
 
         Args:
-            params: Simulation parameters passed to the runner.
-            runner: Callable(params, result_path) that executes the simulation.
-            **metadata: Optional key-value pairs stored alongside the record
-                        (e.g. wall_time, git_sha, notes).
+            params: Simulation parameters. The Store passes a copy to the
+                runner with ``id`` and ``result_file`` injected.
+            **custom_data: Optional key-value pairs stored on the record's
+                ``custom_data`` JSON column (e.g. ``git_sha``, ``notes``).
+                ``elapsed_seconds`` is added automatically.
 
         Returns:
-            RunRecord for the completed run.
-
-        Raises:
-            ValueError: If params contains a reserved key.
+            The persisted model instance for the completed run.
         """
-        self._validate_params(params)
-        h = hash_params(params)
-        result_path = self._generate_result_path(h)
-
-        start = time()
-        runner(params, result_path)
-        elapsed = time() - start
-
-        metadata.setdefault("elapsed_seconds", round(elapsed, 4))
-
-        record = RunRecord(
-            params=params,
-            result_path=result_path,
-            params_hash=h,
-            created_at=datetime.now(timezone.utc).isoformat(),
-            metadata=metadata,
-        )
-        self._index.insert(record)
-        logger.info("Run completed in %.3fs → %s", elapsed, result_path)
-        return record
+        h = self._run(params, **custom_data)
+        self._ingest_to_db(h, overwrite=True)
+        with self._get_session(self._db_url) as db:
+            record = db.execute(
+                select(self._result_cls).where(self._result_cls.id == h)
+            ).scalar_one_or_none()
+        if record is None:
+            raise RuntimeError("Failed to save record to cache")
+        return record  # type:ignore
 
     def run_or_retrieve(
         self,
         params: dict[str, Any],
-        runner: Runner,
-        **metadata: Any,
-    ) -> RunRecord:
+        **custom_data: Any,
+    ) -> ModelT:
         """Retrieve from cache if available, otherwise run and cache.
 
         This is the main workhorse method.
 
         Args:
             params: Simulation parameters.
-            runner: Callable(params, result_path) that executes the simulation.
-            **metadata: Optional metadata for the run record.
+            **custom_data: Forwarded to ``run`` on cache miss; ignored on hit.
 
         Returns:
-            RunRecord (either from cache or freshly created).
+            The model instance, either from cache or freshly created.
         """
         existing = self.retrieve(params)
         if existing is not None:
             return existing
-        return self.run(params, runner, **metadata)
+        return self.run(params, **custom_data)
 
     def sweep(
-        self,
-        params_iter: Iterable[dict[str, Any]],
-        runner: Runner,
-        **metadata: Any,
-    ) -> Generator[RunRecord, None, None]:
+        self, params_iter: Iterable[dict[str, Any]], **custom_data: Any
+    ) -> list[ModelT]:
         """Run or retrieve results for each parameter set in the iterable.
 
         Args:
             params_iter: Iterable of parameter dicts to sweep over.
-            runner: Callable(params, result_path) that executes the simulation.
-            **metadata: Optional metadata passed to each run.
+            **custom_data: Forwarded to each ``run_or_retrieve`` call.
 
         Returns:
-            Generator of RunRecords in the same order as the input.
+            List of model instances in the same order as the input.
         """
         # TODO: allow concurrent run_or_retrieve
+        results = []
         for params in params_iter:
-            yield self.run_or_retrieve(params, runner, **metadata)
-
-    def map(
-        self,
-        function: MapFunction,
-        params_iter: Iterable[dict[str, Any]],
-        runner: Runner,
-        **metadata: Any,
-    ) -> Iterator[Any]:
-        """Apply `function` to every result of run_or_retrieve for each parameter set in
-        the iterable.
-
-        Args:
-            function: Callable(run_record) that performs a operation on top of a run
-                record.
-            params_iter: Iterable of parameter dicts to sweep over.
-            runner: Callable(params, result_path) that executes the simulation.
-            **metadata: Optional metadata passed to each run.
-
-        Returns:
-            Generator of the results of function(record) for each parameter set
-        """
-        # TODO: validate once concurrent sweep is in place
-        return map(function, self.sweep(params_iter, runner, **metadata))
+            results.append(self.run_or_retrieve(params, **custom_data))
+        return results
 
     def register(
         self,
         params: dict[str, Any],
-        result_path: str | Path,
-        **metadata: Any,
-    ) -> RunRecord:
+        result_file: str | Path,
+        **custom_data: Any,
+    ) -> ModelT:
         """Manually register an externally-produced result file.
 
         Use this when you run simulations outside the library and want
@@ -212,76 +269,56 @@ class Store:
 
         Args:
             params: The parameters that produced this result.
-            result_path: Path to the existing result file.
-            **metadata: Optional metadata.
+            result_file: Path to the existing result file.
+            **custom_data: Optional key-value pairs stored on the record's
+                ``custom_data`` JSON column.
 
         Returns:
-            RunRecord for the registered result.
+            The persisted model instance.
 
         Raises:
-            FileNotFoundError: If result_path does not exist.
-            ValueError: If params contains a reserved key.
+            FileNotFoundError: If ``result_file`` does not exist.
         """
-        self._validate_params(params)
-        result_path = Path(result_path)
-        if not result_path.exists():
-            raise FileNotFoundError(f"Result file not found: {result_path}")
+        hash = self._hash_params(params)
+        result_file = Path(result_file)
+        if not result_file.exists():
+            raise FileNotFoundError(f"Result file not found: {result_file}")
 
-        h = hash_params(params)
-        record = RunRecord(
-            params=params,
-            result_path=result_path,
-            params_hash=h,
-            created_at=datetime.now(timezone.utc).isoformat(),
-            metadata=metadata,
-        )
-        self._index.insert(record)
-        logger.info("Registered %s → %s", h, result_path)
+        record_fields = {**params, "id": hash, "result_file": str(result_file)}
+
+        with self._get_session(self._db_url) as db:
+            record = self._result_cls(**record_fields, custom_data=custom_data)
+            db.add(record)
+            db.commit()
+            db.refresh(record)
+        logger.info("Registered %s → %s", hash, result_file)
         return record
 
-    def list(self, where: dict[str, Any] | None = None) -> list[RunRecord]:
-        """List run records, optionally filtered by partial parameter match.
-
-        Args:
-            where: If provided, only return records where all specified
-                   parameter key-value pairs match. Supports subset matching,
-                   e.g. ``where={"street_length": 500}`` returns all runs
-                   with that street length regardless of other parameters.
-
-        Returns:
-            List of matching RunRecord objects.
-        """
-        if where is None:
-            return self._index.all()
-        return self._index.find_by_params(where)
-
     def delete(self, params: dict[str, Any], remove_file: bool = False) -> bool:
-        """Delete a run record by exact parameter match.
+        """Delete a record by exact parameter match.
 
         Args:
-            params: The exact parameters of the run to delete.
+            params: The parameters of the run to delete.
             remove_file: If True, also delete the result file from disk.
 
         Returns:
-            True if a record was found and deleted.
-
-        Raises:
-            ValueError: If params contains a reserved key.
+            True if a record was found and deleted, False otherwise.
         """
-        self._validate_params(params)
-        h = hash_params(params)
-        record = self._index.find_by_hash(h)
-        success = self._index.delete_by_hash(h)
-        if success and remove_file and record is not None:
+        hash = self._hash_params(params)
+        with self._get_session(self._db_url) as db:
+            existing = db.scalar(
+                select(self._result_cls).where(self._result_cls.id == hash)
+            )
+            if existing is None:
+                return False
+            file_path = Path(existing.result_file) if remove_file else None
+            db.execute(delete(self._result_cls).where(self._result_cls.id == hash))
+            db.commit()
+
+        if file_path is not None and file_path.exists():
             try:
-                record.result_path.unlink(missing_ok=True)
-                logger.info("Deleted result file: %s", record.result_path)
+                file_path.unlink(missing_ok=True)
+                logger.info("Deleted result file: %s", file_path)
             except OSError as e:
                 logger.warning("Could not delete result file: %s", e)
-        return success
-
-    def _generate_result_path(self, params_hash: str) -> Path:
-        """Generate a unique result file path."""
-        # Use timestamp + hash to avoid collisions while being human-readable
-        ts = f"{time():.6f}"
-        return self.results_dir / f"{ts}_{params_hash}{self.file_suffix}"
+        return True
