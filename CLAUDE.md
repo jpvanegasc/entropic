@@ -40,7 +40,6 @@ Primary API surface:
 - `retrieve(params)` — lookup by params hash
 - `sweep(param_grid)` — batch run over a grid
 - `register(params, file_path)` — index an externally produced file
-- `list(filters)` — list records with optional column filters
 - `delete(params, remove_file)` — delete a record
 
 **`db.py` — `Base`**: SQLAlchemy `DeclarativeBase` with four reserved columns: `id` (str PK, the hash), `result_file` (str), `created_at` (datetime), `custom_data` (JSON/MutableDict). Users subclass `Base` and add their own simulation parameter columns. `apply_patch()` and `_apply_custom_data_patch()` allow partial updates.
