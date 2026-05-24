@@ -1,13 +1,19 @@
 """Store — the main entry point for managing simulation runs."""
 
-from collections.abc import Iterable, Callable
+from collections.abc import Callable
 from pathlib import Path
 from time import time
 from typing import Any, TypeVar, Generic
 import json
+import itertools
 
 from sqlalchemy import NullPool, create_engine, delete, insert, select, update
 from sqlalchemy.orm import Session
+
+try:
+    from dask.distributed import Client
+except ImportError:
+    pass
 
 from entropic.hashing import hash_dict
 from entropic.logging import logger
@@ -81,7 +87,8 @@ class Store(Generic[ModelT]):
         engine = create_engine(db_url, poolclass=NullPool)
         self._result_cls.metadata.create_all(engine)
 
-    def _hash_params(self, params: dict[str, Any]) -> str:
+    @staticmethod
+    def _hash_params(params: dict[str, Any]) -> str:
         """Compute the hash for a params dict without mutating the caller's copy.
 
         If ``params["id"]`` is present it is used verbatim; otherwise the
@@ -167,6 +174,18 @@ class Store(Generic[ModelT]):
         """Generate a unique result file path."""
         return self.results_dir / f"{params_hash}{self.file_suffix}"
 
+    @staticmethod
+    def _grid_to_iterable(grid: dict[str, list[Any]]) -> list[dict[str, Any]]:
+        combinations = itertools.product(*grid.values())
+
+        param_map = []
+        for combo in combinations:
+            # Re-associate the values with their keys
+            p_dict = dict(zip(grid.keys(), combo, strict=False))
+            param_map.append(p_dict)
+
+        return param_map
+
     # Public API
     # ==========
 
@@ -239,22 +258,61 @@ class Store(Generic[ModelT]):
         return self.run(params, **custom_data)
 
     def sweep(
-        self, params_iter: Iterable[dict[str, Any]], **custom_data: Any
+        self, grid: dict[str, list[Any]], client: Client | None = None
     ) -> list[ModelT]:
-        """Run or retrieve results for each parameter set in the iterable.
+        """Run or retrieve results for each parameter set in the grid.
 
         Args:
             params_iter: Iterable of parameter dicts to sweep over.
-            **custom_data: Forwarded to each ``run_or_retrieve`` call.
 
         Returns:
             List of model instances in the same order as the input.
         """
-        # TODO: allow concurrent run_or_retrieve
-        results = []
-        for params in params_iter:
-            results.append(self.run_or_retrieve(params, **custom_data))
-        return results
+        hash_to_param_map: dict[str, dict[str, Any]] = {
+            self._hash_params(p): p for p in self._grid_to_iterable(grid)
+        }
+
+        with self._get_session(self._db_url) as db:
+            existing = set(
+                db.execute(
+                    select(self._result_cls.id).where(
+                        self._result_cls.id.in_(hash_to_param_map.keys())
+                    )
+                ).scalars()
+            )
+
+        to_run = [p for h, p in hash_to_param_map.items() if h not in existing]
+
+        logger.info(
+            "Found %d results in cache, will run and cache %d runs",
+            len(existing),
+            len(to_run),
+        )
+
+        if client is not None:
+            try:
+                futures = client.map(self._run, to_run, pure=False)
+                client.gather(futures)
+            except Exception:
+                logger.warning(
+                    "Failed to run using distributed client, using naive implementation instead"
+                )
+                map(self._run, to_run)
+        else:
+            map(self._run, to_run)
+
+        self._ingest_to_db(
+            *[h for h in hash_to_param_map.keys() if h not in existing], overwrite=True
+        )
+
+        with self._get_session(self._db_url) as db:
+            return list(
+                db.execute(
+                    select(self._result_cls).where(
+                        self._result_cls.id.in_(list(hash_to_param_map.keys()))
+                    )
+                ).scalars()
+            )
 
     def register(
         self,
