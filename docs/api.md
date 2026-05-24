@@ -90,13 +90,20 @@ Index an externally-produced result file. Raises `FileNotFoundError` if
 ```python
 def sweep(
     self,
-    params_iter: Iterable[dict[str, Any]],
-    **custom_data: Any,
+    grid: dict[str, list[Any]],
+    client: Client | None = None,
 ) -> list[ModelT]
 ```
 
-Run or retrieve results for each parameter set. Returns the rows in input
-order; cached entries are reused, only misses invoke the runner.
+Run or retrieve results for all combinations in the grid. The grid is expanded
+via `itertools.product` — each key maps to a list of candidate values. Fixed
+params must be wrapped in a one-element list.
+
+Cached entries are reused; only misses invoke the runner.
+
+If `client` is a Dask `distributed.Client`, new runs are dispatched as futures
+via `client.map` and gathered before returning. On any error the client falls
+back to serial execution.
 
 #### `delete`
 

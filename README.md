@@ -117,14 +117,16 @@ store.register(
 )
 ```
 
-#### `store.sweep(params_iter, **custom_data) → list[ModelT]`
+#### `store.sweep(grid, client=None) → list[ModelT]`
 
-Run or retrieve results for each parameter set in an iterable. Reuses cached
-results where possible.
+Run or retrieve results for all combinations in the grid. Reuses cached results
+where possible.
 
 ```python
-records = store.sweep([{"n": 10, "dt": dt} for dt in [0.01, 0.005, 0.001]])
+records = store.sweep({"n": [10], "dt": [0.01, 0.005, 0.001]})
 ```
+
+Pass a Dask `distributed.Client` as `client` to dispatch runs in parallel.
 
 #### `store.delete(params, remove_file=False) → bool`
 

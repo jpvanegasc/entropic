@@ -104,18 +104,33 @@ The file must already exist. After registration the row is reachable via
 
 ## Parameter sweeps
 
-Run or retrieve results for a batch of parameter sets — cached rows are reused,
-new ones invoke the runner:
+Pass a grid dict — each key maps to a list of candidate values. `sweep`
+expands all combinations via `itertools.product`, reuses cached entries, and
+only invokes the runner for new parameter sets:
 
 ```python
-records = store.sweep(
-    [{"n": 100, "steps": 5000, "dt": dt} for dt in [0.01, 0.005, 0.001]],
-)
+records = store.sweep({"n": [100], "steps": [5000], "dt": [0.01, 0.005, 0.001]})
+# runs 3 combinations: (n=100, steps=5000, dt=0.01), (…, dt=0.005), (…, dt=0.001)
+```
+
+For a multi-axis sweep:
+
+```python
+records = store.sweep({"n": [50, 100], "dt": [0.01, 0.005]})
+# runs 4 combinations: (50, 0.01), (50, 0.005), (100, 0.01), (100, 0.005)
+```
+
+To parallelise with Dask:
+
+```python
+from dask.distributed import Client
+with Client() as dask_client:
+    records = store.sweep({"n": [50, 100], "dt": [0.01, 0.005]}, client=dask_client)
 ```
 
 ## Custom metadata
 
-Any keyword argument to `run`, `run_or_retrieve`, `sweep`, or `register` lands
+Any keyword argument to `run`, `run_or_retrieve`, or `register` lands
 on the row's `custom_data` JSON column:
 
 ```python

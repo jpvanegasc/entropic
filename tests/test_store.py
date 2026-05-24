@@ -53,18 +53,33 @@ def test_delete_file_already_gone(tmp_path: Path) -> None:
     assert store.delete({"n": 1}, remove_file=True)
 
 
-def test_sweep_forwards_metadata(tmp_path: Path) -> None:
-    """**custom_data kwargs are forwarded to each record in a sweep."""
+def test_sweep_grid_expansion(tmp_path: Path) -> None:
+    """sweep runs all combinations produced by itertools.product."""
 
     def writer(params: dict) -> None:
         Path(params["result_file"]).write_text("data")
 
     store = _make_store(tmp_path, writer)
-    records = store.sweep(
-        [{"n": 1}, {"n": 2}],
-        experiment="test",
-    )
-    assert all(r.custom_data["experiment"] == "test" for r in records)
+    records = store.sweep({"n": [1, 2, 3]})
+    assert len(records) == 3
+    assert {r.n for r in records} == {1, 2, 3}
+
+
+def test_sweep_reuses_cache(tmp_path: Path) -> None:
+    """sweep skips runner for params already in cache."""
+    call_count = 0
+
+    def writer(params: dict) -> None:
+        nonlocal call_count
+        call_count += 1
+        Path(params["result_file"]).write_text("data")
+
+    store = _make_store(tmp_path, writer)
+    store.run({"n": 1})
+    assert call_count == 1
+
+    store.sweep({"n": [1, 2]})
+    assert call_count == 2  # n=1 cached, only n=2 is new
 
 
 def test_register_missing_file_raises(tmp_path: Path) -> None:
