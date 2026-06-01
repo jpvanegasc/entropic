@@ -130,9 +130,16 @@ def test_full_workflow(tmp_path: Path) -> None:
     assert store.retrieve(_params_b()) is not None
 
     # 7. sweep — run over a param grid, reuses cache
-    sweep_params = [{**_params_a(), "x0": x0} for x0 in [2.0, 5.0, 10.0]]
-    # x0=2.0 is already cached
-    records = store.sweep(sweep_params)
+    base = _params_a()
+    records = store.sweep(
+        {
+            "r": [base["r"]],
+            "K": [base["K"]],
+            "x0": [2.0, 5.0, 10.0],
+            "dt": [base["dt"]],
+            "steps": [base["steps"]],
+        }
+    )
     assert len(records) == 3
     assert call_count == 4  # only x0=5.0 and x0=10.0 are new
     assert all(Path(r.result_file).exists() for r in records)
