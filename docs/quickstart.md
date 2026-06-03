@@ -104,20 +104,39 @@ The file must already exist. After registration the row is reachable via
 
 ## Parameter sweeps
 
-Pass a grid dict — each key maps to a list of candidate values. `sweep`
-expands all combinations via `itertools.product`, reuses cached entries, and
-only invokes the runner for new parameter sets:
+`sweep` is the batch counterpart to `run_or_retrieve`: it takes an **iterable of
+param dicts**, reuses cached entries, and only invokes the runner for new
+parameter sets. It makes no assumption about how the sets relate, so any sweep
+shape is just an iterable.
+
+For the common full-product case, build the iterable with `expand_grid` — each
+key maps to a list of candidate values, and it returns one dict per combination:
 
 ```python
-records = store.sweep({"n": [100], "steps": [5000], "dt": [0.01, 0.005, 0.001]})
+from entropic import expand_grid
+
+records = store.sweep(
+    expand_grid({"n": [100], "steps": [5000], "dt": [0.01, 0.005, 0.001]})
+)
 # runs 3 combinations: (n=100, steps=5000, dt=0.01), (…, dt=0.005), (…, dt=0.001)
 ```
 
-For a multi-axis sweep:
+For a multi-axis product:
 
 ```python
-records = store.sweep({"n": [50, 100], "dt": [0.01, 0.005]})
+records = store.sweep(expand_grid({"n": [50, 100], "dt": [0.01, 0.005]}))
 # runs 4 combinations: (50, 0.01), (50, 0.005), (100, 0.01), (100, 0.005)
+```
+
+Because `sweep` takes a plain iterable, non-product sweeps need no special
+support — build the dicts however you like:
+
+```python
+# zipped / diagonal sweep
+records = store.sweep([{"n": n, "dt": dt} for n, dt in zip([50, 100], [0.01, 0.005])])
+
+# filtered product (drop unstable regions)
+records = store.sweep(p for p in expand_grid(grid) if p["dt"] * p["n"] < 1.0)
 ```
 
 To parallelise with Dask:
@@ -125,7 +144,9 @@ To parallelise with Dask:
 ```python
 from dask.distributed import Client
 with Client() as dask_client:
-    records = store.sweep({"n": [50, 100], "dt": [0.01, 0.005]}, client=dask_client)
+    records = store.sweep(
+        expand_grid({"n": [50, 100], "dt": [0.01, 0.005]}), client=dask_client
+    )
 ```
 
 ## Custom metadata
