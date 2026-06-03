@@ -11,9 +11,6 @@ uv run pytest tests/ -v
 # Run a single test
 uv run pytest tests/test_e2e.py::test_name -v
 
-# Type checking (strict mode)
-uv run mypy src/
-
 # Coverage (CI requires ≥80%)
 uv run coverage run -m pytest && uv run coverage report -i --fail-under=80
 

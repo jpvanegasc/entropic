@@ -1,6 +1,6 @@
 """Store — the main entry point for managing simulation runs."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from time import time
 from typing import Any, TypeVar, Generic, TYPE_CHECKING
@@ -25,6 +25,26 @@ from entropic.db import Base
 Runner = Callable[[dict[str, Any]], None]
 
 ModelT = TypeVar("ModelT", bound=Base)
+
+
+def expand_grid(grid: dict[str, list[Any]]) -> list[dict[str, Any]]:
+    """Expand a parameter grid into the full Cartesian product of value sets.
+
+    A convenience builder for the common full-product sweep. Feed the result
+    to :meth:`Store.sweep`::
+
+        store.sweep(expand_grid({"alpha": [1, 2, 3], "beta": [0.1, 0.2]}))
+
+    Args:
+        grid: Mapping of parameter names to lists of values.
+
+    Returns:
+        One dict per combination, in ``itertools.product`` order.
+    """
+    return [
+        dict(zip(grid.keys(), combo, strict=True))
+        for combo in itertools.product(*grid.values())
+    ]
 
 
 class Store(Generic[ModelT]):
@@ -177,18 +197,6 @@ class Store(Generic[ModelT]):
         """Generate a unique result file path."""
         return self.results_dir / f"{params_hash}{self.file_suffix}"
 
-    @staticmethod
-    def _grid_to_iterable(grid: dict[str, list[Any]]) -> list[dict[str, Any]]:
-        combinations = itertools.product(*grid.values())
-
-        param_map = []
-        for combo in combinations:
-            # Re-associate the values with their keys
-            p_dict = dict(zip(grid.keys(), combo, strict=False))
-            param_map.append(p_dict)
-
-        return param_map
-
     # Public API
     # ==========
 
@@ -261,24 +269,24 @@ class Store(Generic[ModelT]):
         return self.run(params, **custom_data)
 
     def sweep(
-        self, grid: dict[str, list[Any]], client: "Client | None" = None
+        self, params: Iterable[dict[str, Any]], client: "Client | None" = None
     ) -> list[ModelT]:
-        """Run or retrieve results for all parameter combinations in the grid.
+        """Run or retrieve results for every parameter set in ``params``.
 
         Args:
-            grid: Mapping of parameter names to lists of values. All combinations
-                are expanded via ``itertools.product``. For a single-axis sweep,
-                wrap fixed values in a one-element list.
+            params: Iterable of parameter dicts, each shaped like the argument
+                to :meth:`run_or_retrieve`. Consumed once, so generators are
+                fine. Duplicate parameter sets (same hash) are de-duplicated.
             client: Optional Dask ``distributed.Client``. When provided, new runs
                 are dispatched as futures; falls back to serial execution if the
                 client raises.
 
         Returns:
-            List of model instances for every combination in the grid.
-            Order matches the ``itertools.product`` expansion of ``grid``.
+            List of model instances, one per distinct parameter set in
+            ``params``.
         """
         hash_to_param_map: dict[str, dict[str, Any]] = {
-            self._hash_params(p): p for p in self._grid_to_iterable(grid)
+            self._hash_params(p): p for p in params
         }
 
         with self._get_session(self._db_url) as db:
@@ -304,7 +312,8 @@ class Store(Generic[ModelT]):
                 client.gather(futures)
             except Exception:
                 logger.warning(
-                    "Failed to run using distributed client, using naive implementation instead"
+                    "Failed to run using distributed client, using naive implementation"
+                    " instead"
                 )
                 for p in to_run:
                     self._run(p)

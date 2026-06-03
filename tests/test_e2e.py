@@ -9,7 +9,7 @@ import csv
 from pathlib import Path
 
 
-from entropic import Store, Base, Mapped
+from entropic import Store, Base, Mapped, expand_grid
 
 
 # ---------------------------------------------------------------------------
@@ -132,13 +132,15 @@ def test_full_workflow(tmp_path: Path) -> None:
     # 7. sweep — run over a param grid, reuses cache
     base = _params_a()
     records = store.sweep(
-        {
-            "r": [base["r"]],
-            "K": [base["K"]],
-            "x0": [2.0, 5.0, 10.0],
-            "dt": [base["dt"]],
-            "steps": [base["steps"]],
-        }
+        expand_grid(
+            {
+                "r": [base["r"]],
+                "K": [base["K"]],
+                "x0": [2.0, 5.0, 10.0],
+                "dt": [base["dt"]],
+                "steps": [base["steps"]],
+            }
+        )
     )
     assert len(records) == 3
     assert call_count == 4  # only x0=5.0 and x0=10.0 are new

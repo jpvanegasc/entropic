@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from entropic import Store, Base, Mapped
+from entropic import Store, Base, Mapped, expand_grid
 
 
 class _StoreResult(Base):
@@ -53,14 +53,26 @@ def test_delete_file_already_gone(tmp_path: Path) -> None:
     assert store.delete({"n": 1}, remove_file=True)
 
 
-def test_sweep_grid_expansion(tmp_path: Path) -> None:
-    """sweep runs all combinations produced by itertools.product."""
+def test_sweep_runs_all_param_sets(tmp_path: Path) -> None:
+    """sweep runs every parameter set in the iterable."""
 
     def writer(params: dict) -> None:
         Path(params["result_file"]).write_text("data")
 
     store = _make_store(tmp_path, writer)
-    records = store.sweep({"n": [1, 2, 3]})
+    records = store.sweep([{"n": 1}, {"n": 2}, {"n": 3}])
+    assert len(records) == 3
+    assert {r.n for r in records} == {1, 2, 3}
+
+
+def test_sweep_with_expand_grid(tmp_path: Path) -> None:
+    """expand_grid feeds the full Cartesian product into sweep."""
+
+    def writer(params: dict) -> None:
+        Path(params["result_file"]).write_text("data")
+
+    store = _make_store(tmp_path, writer)
+    records = store.sweep(expand_grid({"n": [1, 2, 3]}))
     assert len(records) == 3
     assert {r.n for r in records} == {1, 2, 3}
 
@@ -78,7 +90,7 @@ def test_sweep_reuses_cache(tmp_path: Path) -> None:
     store.run({"n": 1})
     assert call_count == 1
 
-    store.sweep({"n": [1, 2]})
+    store.sweep([{"n": 1}, {"n": 2}])
     assert call_count == 2  # n=1 cached, only n=2 is new
 
 
