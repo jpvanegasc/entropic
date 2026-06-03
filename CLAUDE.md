@@ -11,9 +11,6 @@ uv run pytest tests/ -v
 # Run a single test
 uv run pytest tests/test_e2e.py::test_name -v
 
-# Type checking (strict mode)
-uv run mypy src/
-
 # Coverage (CI requires ≥80%)
 uv run coverage run -m pytest && uv run coverage report -i --fail-under=80
 
@@ -38,9 +35,11 @@ Primary API surface:
 - `run_or_retrieve(params)` — cache-hit or run
 - `run(params)` — force run even if cached
 - `retrieve(params)` — lookup by params hash
-- `sweep(param_grid)` — batch run over a grid
+- `sweep(params)` — batch run/retrieve over an iterable of param dicts
 - `register(params, file_path)` — index an externally produced file
 - `delete(params, remove_file)` — delete a record
+
+Module-level `expand_grid(grid)` expands a `{key: [values]}` grid into the full Cartesian product (list of param dicts) for feeding to `sweep`. It is the only product-expansion helper; non-product sweeps are built directly as iterables of dicts.
 
 **`db.py` — `Base`**: SQLAlchemy `DeclarativeBase` with four reserved columns: `id` (str PK, the hash), `result_file` (str), `created_at` (datetime), `custom_data` (JSON/MutableDict). Users subclass `Base` and add their own simulation parameter columns. `apply_patch()` and `_apply_custom_data_patch()` allow partial updates.
 

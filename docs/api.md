@@ -90,16 +90,20 @@ Index an externally-produced result file. Raises `FileNotFoundError` if
 ```python
 def sweep(
     self,
-    grid: dict[str, list[Any]],
+    params: Iterable[dict[str, Any]],
     client: Client | None = None,
 ) -> list[ModelT]
 ```
 
-Run or retrieve results for all combinations in the grid. The grid is expanded
-via `itertools.product` — each key maps to a list of candidate values. Fixed
-params must be wrapped in a one-element list.
+Batch counterpart to `run_or_retrieve`: run or retrieve a result for every
+parameter set in `params`. `sweep` makes no assumption about how the sets
+relate — full Cartesian products, zipped/diagonal sweeps, sampled or filtered
+sets are all just iterables of dicts. For the common full-product case, build
+the iterable with [`expand_grid`](#expand_grid).
 
-Cached entries are reused; only misses invoke the runner.
+`params` is consumed once, so generators are fine. Duplicate parameter sets
+(same hash) are de-duplicated. Cached entries are reused; only misses invoke
+the runner.
 
 If `client` is a Dask `distributed.Client`, new runs are dispatched as futures
 via `client.map` and gathered before returning. On any error the client falls
@@ -113,6 +117,25 @@ def delete(self, params: dict[str, Any], remove_file: bool = False) -> bool
 
 Delete a row by exact parameter match. If `remove_file=True`, also unlinks
 the result file. Returns `True` if a row was removed.
+
+## `expand_grid`
+
+```python
+def expand_grid(grid: dict[str, list[Any]]) -> list[dict[str, Any]]
+```
+
+Convenience builder for the common full-product sweep: expands a grid (each key
+mapped to a list of candidate values) into the full Cartesian product, in
+`itertools.product` order. Feed the result straight to [`sweep`](#sweep):
+
+```python
+from entropic import expand_grid
+
+store.sweep(expand_grid({"alpha": [1, 2, 3], "beta": [0.1, 0.2]}))
+```
+
+`expand_grid` is the only product-expansion helper entropic ships; non-product
+sweeps (zip, sampling, filtering) are expressed directly as iterables of dicts.
 
 ## `Base` — record schema
 

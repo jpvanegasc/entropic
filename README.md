@@ -117,13 +117,16 @@ store.register(
 )
 ```
 
-#### `store.sweep(grid, client=None) → list[ModelT]`
+#### `store.sweep(params, client=None) → list[ModelT]`
 
-Run or retrieve results for all combinations in the grid. Reuses cached results
-where possible.
+Batch counterpart to `run_or_retrieve`: takes an iterable of param dicts, reuses
+cached results where possible, and only runs the misses. Any sweep shape is just
+an iterable; for a full Cartesian product, expand a grid with `expand_grid`.
 
 ```python
-records = store.sweep({"n": [10], "dt": [0.01, 0.005, 0.001]})
+from entropic import expand_grid
+
+records = store.sweep(expand_grid({"n": [10], "dt": [0.01, 0.005, 0.001]}))
 ```
 
 Pass a Dask `distributed.Client` as `client` to dispatch runs in parallel.
