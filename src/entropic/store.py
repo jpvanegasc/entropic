@@ -147,7 +147,7 @@ class Store(Generic[ModelT]):
 
         with open(self.results_dir / f"{hash}.json", "w+") as f:
             payload = {**runner_params, "custom_data": custom_data}
-            f.write(json.dumps(payload))
+            f.write(json.dumps(payload, default=str))
 
         return hash
 
@@ -161,9 +161,13 @@ class Store(Generic[ModelT]):
 
         with self._get_session(self._db_url) as db:
             for r in results:
+                r = Path(r)
+                if not r.exists() or r.stat().st_size == 0:
+                    r.unlink()
+                    continue
                 with open(r) as f:
                     data = json.load(f)
-                Path(r).unlink()
+                r.unlink()
 
                 filepath = Path(data["result_file"])
                 if not filepath.exists() or filepath.stat().st_size == 0:
@@ -278,9 +282,7 @@ class Store(Generic[ModelT]):
                 to :meth:`run_or_retrieve`. Consumed once, so generators are
                 fine. Duplicate parameter sets (same hash) are de-duplicated.
             client: Optional Dask ``distributed.Client``. When provided, new runs
-                are dispatched as futures; falls back to serial execution if the
-                client raises.
-
+                are dispatched as futures; falls back to serial execution.
         Returns:
             List of model instances, one per distinct parameter set in
             ``params``.
@@ -306,24 +308,16 @@ class Store(Generic[ModelT]):
             len(to_run),
         )
 
-        if client is not None:
-            try:
+        try:
+            if client is not None:
+                logger.info("Running using Dask client")
                 futures = client.map(self._run, to_run, pure=False)
                 client.gather(futures)
-            except Exception:
-                logger.warning(
-                    "Failed to run using distributed client, using naive implementation"
-                    " instead"
-                )
-                for p in to_run:
-                    self._run(p)
-        else:
-            for p in to_run:
-                self._run(p)
-
-        self._ingest_to_db(
-            *[h for h in hash_to_param_map.keys() if h not in existing], overwrite=True
-        )
+            else:
+                logger.info("Running using naive map")
+                map(self._run, to_run)
+        finally:
+            self._ingest_to_db(overwrite=True)
 
         with self._get_session(self._db_url) as db:
             return list(
