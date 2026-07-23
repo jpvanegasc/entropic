@@ -315,7 +315,8 @@ class Store(Generic[ModelT]):
                 client.gather(futures)
             else:
                 logger.info("Running using naive map")
-                map(self._run, to_run)
+                for _ in map(self._run, to_run):
+                    logger.debug("ran using map")
         finally:
             self._ingest_to_db(overwrite=True)
 
