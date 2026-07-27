@@ -53,6 +53,47 @@ def test_delete_file_already_gone(tmp_path: Path) -> None:
     assert store.delete({"n": 1}, remove_file=True)
 
 
+def test_delete_by_hash(tmp_path: Path) -> None:
+    """delete(hash=...) removes the record without needing the original params."""
+
+    def writer(params: dict) -> None:
+        Path(params["result_file"]).write_text("data")
+
+    store = _make_store(tmp_path, writer)
+    record = store.run({"n": 1})
+
+    assert store.delete(hash=record.id)
+    assert store.retrieve({"n": 1}) is None
+
+
+def test_delete_by_hash_not_found(tmp_path: Path) -> None:
+    """delete(hash=...) returns False for an unknown hash."""
+
+    store = _make_store(tmp_path, lambda params: None)
+    assert not store.delete(hash="deadbeefdeadbeef")
+
+
+def test_delete_requires_params_or_hash(tmp_path: Path) -> None:
+    """delete() with neither params nor hash raises ValueError."""
+
+    store = _make_store(tmp_path, lambda params: None)
+    with pytest.raises(ValueError, match="Either 'params' or 'hash' need to be set"):
+        store.delete()
+
+
+def test_delete_hash_takes_precedence_over_params(tmp_path: Path) -> None:
+    """When both are given, hash is used and params is ignored."""
+
+    def writer(params: dict) -> None:
+        Path(params["result_file"]).write_text("data")
+
+    store = _make_store(tmp_path, writer)
+    record = store.run({"n": 1})
+
+    assert store.delete(params={"n": 999}, hash=record.id)
+    assert store.retrieve({"n": 1}) is None
+
+
 def test_sweep_runs_all_param_sets(tmp_path: Path) -> None:
     """sweep runs every parameter set in the iterable."""
 
