@@ -112,11 +112,19 @@ back to serial execution.
 #### `delete`
 
 ```python
-def delete(self, params: dict[str, Any], remove_file: bool = False) -> bool
+def delete(
+    self,
+    params: dict[str, Any] | None = None,
+    hash: str | None = None,
+    remove_file: bool = False,
+) -> bool
 ```
 
-Delete a row by exact parameter match. If `remove_file=True`, also unlinks
-the result file. Returns `True` if a row was removed.
+Delete a row by exact parameter match, or by its hash directly if you already
+have one (e.g. from a broader SQLAlchemy query — see
+[Deleting by a broader query](quickstart.md#deleting-by-a-broader-query)).
+Exactly one of `params`/`hash` must be given. If `remove_file=True`, also
+unlinks the result file. Returns `True` if a row was removed.
 
 ## `expand_grid`
 

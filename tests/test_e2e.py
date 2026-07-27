@@ -160,3 +160,22 @@ def test_full_workflow(tmp_path: Path) -> None:
 
     # delete nonexistent
     assert not store.delete({"r": 999.0, "K": 1.0, "x0": 1.0, "dt": 0.1, "steps": 10})
+
+    # 8. delete by a broader query — recipe from docs/quickstart.md: query
+    # result_cls directly with SQLAlchemy for a partial parameter match
+    # (every remaining run with K=100.0, regardless of x0), then feed the
+    # matching hashes to delete(hash=...). x0=2.0 and x0=10.0 are what's left
+    # from the sweep above (x0=5.0 was already deleted).
+    from sqlalchemy import create_engine, select
+    from sqlalchemy.orm import Session
+
+    engine = create_engine(f"sqlite:///{tmp_path}/db.sqlite3")
+    with Session(engine) as session:
+        hashes = session.scalars(select(Result.id).where(Result.K == 100.0)).all()
+    assert len(hashes) == 2
+
+    for h in hashes:
+        assert store.delete(hash=h)
+
+    with Session(engine) as session:
+        assert session.scalars(select(Result)).all() == []
