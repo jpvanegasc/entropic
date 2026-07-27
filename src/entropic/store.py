@@ -367,17 +367,26 @@ class Store(Generic[ModelT]):
         logger.info("Registered %s → %s", hash, result_file)
         return record
 
-    def delete(self, params: dict[str, Any], remove_file: bool = False) -> bool:
+    def delete(
+        self,
+        params: dict[str, Any] | None = None,
+        hash: str | None = None,
+        remove_file: bool = False,
+    ) -> bool:
         """Delete a record by exact parameter match.
 
         Args:
-            params: The parameters of the run to delete.
+            params: The parameters of the run to delete. Searches by exact match
+            hash: The hash of the run to delete.
             remove_file: If True, also delete the result file from disk.
 
         Returns:
             True if a record was found and deleted, False otherwise.
         """
-        hash = self._hash_params(params)
+        if hash is None:
+            if params is None:
+                raise ValueError("Either 'params' or 'hash' need to be set")
+            hash = self._hash_params(params)
         with self._get_session(self._db_url) as db:
             existing = db.scalar(
                 select(self._result_cls).where(self._result_cls.id == hash)

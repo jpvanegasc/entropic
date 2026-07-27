@@ -88,6 +88,35 @@ store.delete({"n": 100, "steps": 5000, "dt": 0.01}, remove_file=True)
 
 Returns `True` if a row was removed, `False` otherwise.
 
+You can also delete by hash directly, via the `hash` argument instead of `params`:
+
+```python
+store.delete(hash="a1b2c3d4e5f6a7b8")
+```
+
+### Deleting by a broader query
+
+`delete` only matches a single, exact parameter set — there's no built-in
+support for matching a subset of parameters (e.g. "every run with
+`alpha=1`, regardless of `beta`"). For that, query `result_cls` directly with
+SQLAlchemy and feed the matching hashes to `delete`:
+
+```python
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session
+
+engine = create_engine("sqlite:///db.sqlite3")
+with Session(engine) as session:
+    hashes = session.scalars(
+        select(SimResult.id).where(SimResult.alpha == 1)
+    ).all()
+
+for h in hashes:
+    store.delete(hash=h, remove_file=True)
+```
+
+Use the same `db_url` and `result_cls` you passed to `Store`.
+
 ## Registering external files
 
 If a result file was produced outside entropic, index it via `register`:
